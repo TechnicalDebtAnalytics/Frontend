@@ -2,6 +2,8 @@ import { useState } from "react"
 import Input from "../components/common/Input"
 import Button from "../components/common/Button"
 import Logo from "../components/common/Logo"
+import { useAuth0 } from "@auth0/auth0-react"
+
 
 const PRIMARY = "#2563EB"
 const PRIMARY_HOVER = "#1D4ED8"
@@ -674,17 +676,19 @@ function LeftPanel() {
 // ── Right panel ────────────────────────────────────────────────────────────
 
 function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
+  const { loginWithRedirect } = useAuth0()
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [loading, setLoading] = useState(false)
 
-  const handleSignIn = () => {
-    setLoading(true)
-    setTimeout(() => setLoading(false), 1800)
+
+  const handleLogin = async () => {
+  
+      await loginWithRedirect()
   }
-
+  
   return (
     <div
       style={{
@@ -879,8 +883,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
             </div>
 
             <Button
-              onClick={handleSignIn}
-              loading={loading}
+              onClick={handleLogin}
               primaryColor={PRIMARY}
               primaryHover={PRIMARY_HOVER}
               shadowColor={SHADOW}
