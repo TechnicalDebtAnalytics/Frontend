@@ -496,7 +496,7 @@ function RepoWidget() {
 
 // ── Left panel ─────────────────────────────────────────────────────────────
 
-function LeftPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
+function LeftPanel() {
   return (
     <div
       style={{
@@ -996,7 +996,7 @@ export default function LoginPage({
         className="login-left"
         style={{ flex: "0 0 55%", minWidth: 0, display: "flex" }}
       >
-        <LeftPanel onNavigate={onNavigate} />
+        <LeftPanel/>
       </div>
       <div style={{ flex: "0 0 45%", minWidth: 0 }}>
         <RightPanel onNavigate={onNavigate} />
