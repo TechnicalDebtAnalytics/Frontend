@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import SystemAdminDashboard from './pages/SystemAdminDashboard'
 import UsersPage from './pages/UsersPage'
+import CompaniesPage from './pages/CompaniesPage'
 
 export default function App() {
   return (
@@ -27,6 +28,11 @@ export default function App() {
           path="/systemDashboard/users"
           element={<UsersPage />}
         />
+
+        <Route
+          path="/systemDashboard/companies"
+          element={<CompaniesPage />} />
+      
       </Routes>
     </BrowserRouter>
   )
