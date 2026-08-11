@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Input from '../components/common/Input'
 import Button from '../components/common/Button'
 import Logo from '../components/common/Logo'
+import { useNavigate } from 'react-router-dom'
 
 const PRIMARY = '#4F46E5'
 const PRIMARY_HOVER = '#4338CA'
@@ -273,7 +274,9 @@ function LeftPanel() {
 
 // ── Right panel ────────────────────────────────────────────────────────────
 
-function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
+function RightPanel() {
+  const navigate = useNavigate()
+
   const [org, setOrg] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -396,7 +399,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
 
         <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '13px', color: '#9CA3AF' }}>
           Already have an account?{' '}
-          <button onClick={() => onNavigate('login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: PRIMARY, padding: '0', fontFamily: 'Inter, sans-serif' }}
+          <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: PRIMARY, padding: '0', fontFamily: 'Inter, sans-serif' }}
             onMouseEnter={e => (e.currentTarget.style.color = PRIMARY_HOVER)}
             onMouseLeave={e => (e.currentTarget.style.color = PRIMARY)}>
             Sign In
@@ -409,7 +412,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
 
 // ── Page export ────────────────────────────────────────────────────────────
 
-export default function RegisterPage({ onNavigate }: { onNavigate: (page: string) => void }) {
+export default function RegisterPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif' }}>
       <style>{`
@@ -419,7 +422,7 @@ export default function RegisterPage({ onNavigate }: { onNavigate: (page: string
         <LeftPanel />
       </div>
       <div style={{ flex: '0 0 45%', minWidth: 0, overflowY: 'auto' }}>
-        <RightPanel onNavigate={onNavigate} />
+        <RightPanel />
       </div>
     </div>
   )

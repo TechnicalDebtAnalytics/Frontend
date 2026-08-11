@@ -1,16 +1,27 @@
-import { useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-
-type Page = 'login' | 'register'
+import SystemAdminDashboard from './pages/SystemAdminDashboard'
 
 export default function App() {
-  const [page, setPage] = useState<Page>('login')
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
 
-  const navigate = (target: string) => {
-    if (target === 'login' || target === 'register') setPage(target)
-  }
+        <Route path="/register" element={<RegisterPage />} />
 
-  if (page === 'register') return <RegisterPage onNavigate={navigate} />
-  return <LoginPage onNavigate={navigate} />
+        <Route
+          path="/systemDashboard"
+          element={<SystemAdminDashboard />}
+        />
+
+        <Route
+          path="*"
+          element={<Navigate to="/login" replace />}
+        />
+      </Routes>
+    </BrowserRouter>
+  )
 }
