@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Logo from '../common/Logo'
 
+import { useNavigate } from 'react-router-dom'
+
 type NavItem = {
   id: string
   label: string
@@ -48,13 +50,13 @@ const navItems: NavItem[] = [
 
 type Props = {
   activeItem?: string
-  onNavigate?: (id: string) => void
   collapsed?: boolean
 }
 
-export default function AdminSidebar({ activeItem = 'overview', onNavigate, collapsed = false }: Props) {
+export default function AdminSidebar({ activeItem = 'overview', collapsed = false }: Props) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [profileHover, setProfileHover] = useState(false)
+    const navigate = useNavigate()
 
   return (
     <aside style={{
@@ -107,8 +109,16 @@ export default function AdminSidebar({ activeItem = 'overview', onNavigate, coll
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate?.(item.id)}
-              onMouseEnter={() => setHovered(item.id)}
+              onClick={() => {
+                if (item.id === 'overview') {
+                    navigate('/systemDashboard')
+                }
+
+                if (item.id === 'users') {
+                    navigate('/systemDashboard/users')
+                }
+                }}
+                onMouseEnter={() => setHovered(item.id)}
               onMouseLeave={() => setHovered(null)}
               title={collapsed ? item.label : undefined}
               style={{

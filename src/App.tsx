@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import SystemAdminDashboard from './pages/SystemAdminDashboard'
+import UsersPage from './pages/UsersPage'
 
 export default function App() {
   return (
@@ -20,6 +21,11 @@ export default function App() {
         <Route
           path="*"
           element={<Navigate to="/login" replace />}
+        />
+
+        <Route
+          path="/systemDashboard/users"
+          element={<UsersPage />}
         />
       </Routes>
     </BrowserRouter>

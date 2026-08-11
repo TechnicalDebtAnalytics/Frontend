@@ -99,7 +99,7 @@ export default function SystemAdminDashboard() {
 
       {/* Sidebar */}
       <div className="admin-sidebar" style={{ position: 'fixed', zIndex: 40 }}>
-        <AdminSidebar activeItem={activeNav} onNavigate={id => { setActiveNav(id); setMobileOpen(false) }} />
+        <AdminSidebar activeItem={activeNav} />
       </div>
 
       {/* Main content */}
