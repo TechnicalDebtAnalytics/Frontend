@@ -1,85 +1,9 @@
-import { useState } from "react"
-import Input from "../components/common/Input"
-import Button from "../components/common/Button"
 import Logo from "../components/common/Logo"
 import { useAuth0 } from "@auth0/auth0-react"
-
 
 const PRIMARY = "#2563EB"
 const PRIMARY_HOVER = "#1D4ED8"
 const SHADOW = "rgba(37,99,235,0.25)"
-
-// ── Icons ──────────────────────────────────────────────────────────────────
-
-function EyeIcon({ open }: { open: boolean }) {
-  return open ? (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  ) : (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-      <line x1="2" y1="2" x2="22" y2="22" />
-    </svg>
-  )
-}
-
-function MailIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-    </svg>
-  )
-}
-
-function LockIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg>
-  )
-}
-
 
 
 // ── Left panel widgets ─────────────────────────────────────────────────────
@@ -88,7 +12,9 @@ function DebtScoreWidget() {
   return (
     <div
       className="float-b"
-      style={{ filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.25))" }}
+      style={{
+        filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.25))",
+      }}
     >
       <div
         style={{
@@ -134,6 +60,7 @@ function DebtScoreWidget() {
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
+
           <span
             style={{
               color: "rgba(255,255,255,0.7)",
@@ -144,6 +71,7 @@ function DebtScoreWidget() {
             Technical Debt Score
           </span>
         </div>
+
         <div
           style={{
             display: "flex",
@@ -162,10 +90,18 @@ function DebtScoreWidget() {
           >
             72
           </span>
-          <span style={{ color: "#FBBF24", fontSize: "14px", fontWeight: 600 }}>
+
+          <span
+            style={{
+              color: "#FBBF24",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
             / 100
           </span>
         </div>
+
         <div
           style={{
             background: "rgba(255,255,255,0.1)",
@@ -183,6 +119,7 @@ function DebtScoreWidget() {
             }}
           />
         </div>
+
         <div
           style={{
             marginTop: "8px",
@@ -197,16 +134,32 @@ function DebtScoreWidget() {
   )
 }
 
+
 function CodeQualityWidget() {
   const metrics = [
-    { label: "Maintainability", value: 84, color: "#34D399" },
-    { label: "Test Coverage", value: 61, color: "#60A5FA" },
-    { label: "Complexity", value: 43, color: "#F87171" },
+    {
+      label: "Maintainability",
+      value: 84,
+      color: "#34D399",
+    },
+    {
+      label: "Test Coverage",
+      value: 61,
+      color: "#60A5FA",
+    },
+    {
+      label: "Complexity",
+      value: 43,
+      color: "#F87171",
+    },
   ]
+
   return (
     <div
       className="float-a"
-      style={{ filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.25))" }}
+      style={{
+        filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.25))",
+      }}
     >
       <div
         style={{
@@ -250,6 +203,7 @@ function CodeQualityWidget() {
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
           </div>
+
           <span
             style={{
               color: "rgba(255,255,255,0.7)",
@@ -260,6 +214,7 @@ function CodeQualityWidget() {
             Code Quality
           </span>
         </div>
+
         {metrics.map((m) => (
           <div key={m.label} style={{ marginBottom: "10px" }}>
             <div
@@ -270,16 +225,25 @@ function CodeQualityWidget() {
               }}
             >
               <span
-                style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px" }}
+                style={{
+                  color: "rgba(255,255,255,0.6)",
+                  fontSize: "11px",
+                }}
               >
                 {m.label}
               </span>
+
               <span
-                style={{ color: "#fff", fontSize: "11px", fontWeight: 600 }}
+                style={{
+                  color: "#fff",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                }}
               >
                 {m.value}%
               </span>
             </div>
+
             <div
               style={{
                 background: "rgba(255,255,255,0.1)",
@@ -304,11 +268,14 @@ function CodeQualityWidget() {
   )
 }
 
+
 function AIAnalysisWidget() {
   return (
     <div
       className="float-c"
-      style={{ filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.25))" }}
+      style={{
+        filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.25))",
+      }}
     >
       <div
         style={{
@@ -352,6 +319,7 @@ function AIAnalysisWidget() {
               <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2Z" />
             </svg>
           </div>
+
           <span
             style={{
               color: "rgba(255,255,255,0.7)",
@@ -361,6 +329,7 @@ function AIAnalysisWidget() {
           >
             AI Analysis
           </span>
+
           <span
             style={{
               marginLeft: "auto",
@@ -375,6 +344,7 @@ function AIAnalysisWidget() {
             LIVE
           </span>
         </div>
+
         {[
           "Refactor AuthService.ts — high complexity",
           "Add tests for PaymentModule",
@@ -399,6 +369,7 @@ function AIAnalysisWidget() {
                 flexShrink: 0,
               }}
             />
+
             <span
               style={{
                 color: "rgba(255,255,255,0.75)",
@@ -415,11 +386,14 @@ function AIAnalysisWidget() {
   )
 }
 
+
 function RepoWidget() {
   return (
     <div
       className="float-b"
-      style={{ filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.2))" }}
+      style={{
+        filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.2))",
+      }}
     >
       <div
         style={{
@@ -455,10 +429,18 @@ function RepoWidget() {
             <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2Z" />
           </svg>
         </div>
+
         <div>
-          <div style={{ color: "#fff", fontSize: "13px", fontWeight: 600 }}>
+          <div
+            style={{
+              color: "#fff",
+              fontSize: "13px",
+              fontWeight: 600,
+            }}
+          >
             acme-corp/platform
           </div>
+
           <div
             style={{
               color: "rgba(255,255,255,0.5)",
@@ -469,6 +451,7 @@ function RepoWidget() {
             Last analyzed 2 hrs ago
           </div>
         </div>
+
         <div
           style={{
             marginLeft: "auto",
@@ -487,7 +470,13 @@ function RepoWidget() {
               boxShadow: "0 0 0 2px rgba(52,211,153,0.3)",
             }}
           />
-          <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "10px" }}>
+
+          <span
+            style={{
+              color: "rgba(255,255,255,0.4)",
+              fontSize: "10px",
+            }}
+          >
             Active
           </span>
         </div>
@@ -495,6 +484,7 @@ function RepoWidget() {
     </div>
   )
 }
+
 
 // ── Left panel ─────────────────────────────────────────────────────────────
 
@@ -515,18 +505,23 @@ function LeftPanel() {
         padding: "60px 48px",
       }}
     >
+      {/* Background glow */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          backgroundImage: `radial-gradient(ellipse at 20% 20%, rgba(96,165,250,0.25) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(30,58,138,0.5) 0%, transparent 50%), radial-gradient(ellipse at 60% 10%, rgba(167,139,250,0.15) 0%, transparent 40%)`,
+          backgroundImage:
+            `radial-gradient(ellipse at 20% 20%, rgba(96,165,250,0.25) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(30,58,138,0.5) 0%, transparent 50%), radial-gradient(ellipse at 60% 10%, rgba(167,139,250,0.15) 0%, transparent 40%)`,
         }}
       />
+
+      {/* Grid */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)`,
+          backgroundImage:
+            `linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)`,
           backgroundSize: "40px 40px",
         }}
       />
@@ -539,6 +534,7 @@ function LeftPanel() {
           maxWidth: "540px",
         }}
       >
+        {/* Logo badge */}
         <div style={{ marginBottom: "48px" }}>
           <div
             style={{
@@ -564,6 +560,7 @@ function LeftPanel() {
             >
               <Logo color={PRIMARY} size={13} />
             </div>
+
             <span
               style={{
                 color: "rgba(255,255,255,0.9)",
@@ -577,6 +574,7 @@ function LeftPanel() {
           </div>
         </div>
 
+        {/* Main heading */}
         <h1
           style={{
             color: "#fff",
@@ -589,8 +587,11 @@ function LeftPanel() {
         >
           AI-Powered Technical
           <br />
-          <span style={{ color: "#93C5FD" }}>Debt Intelligence</span>
+          <span style={{ color: "#93C5FD" }}>
+            Debt Intelligence
+          </span>
         </h1>
+
         <p
           style={{
             color: "rgba(255,255,255,0.65)",
@@ -605,6 +606,7 @@ function LeftPanel() {
           and ship cleaner code with AI-guided recommendations.
         </p>
 
+        {/* Widgets */}
         <div
           style={{
             display: "grid",
@@ -613,11 +615,16 @@ function LeftPanel() {
           }}
         >
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+            }}
           >
             <DebtScoreWidget />
             <RepoWidget />
           </div>
+
           <div
             style={{
               display: "flex",
@@ -631,6 +638,7 @@ function LeftPanel() {
           </div>
         </div>
 
+        {/* Statistics */}
         <div
           style={{
             marginTop: "40px",
@@ -641,9 +649,18 @@ function LeftPanel() {
           }}
         >
           {[
-            { value: "2,400+", label: "Repos Analyzed" },
-            { value: "98%", label: "Detection Accuracy" },
-            { value: "3.2x", label: "Faster Refactoring" },
+            {
+              value: "2,400+",
+              label: "Repos Analyzed",
+            },
+            {
+              value: "98%",
+              label: "Detection Accuracy",
+            },
+            {
+              value: "3.2x",
+              label: "Faster Refactoring",
+            },
           ].map((s) => (
             <div key={s.label}>
               <div
@@ -656,6 +673,7 @@ function LeftPanel() {
               >
                 {s.value}
               </div>
+
               <div
                 style={{
                   color: "rgba(255,255,255,0.5)",
@@ -673,22 +691,27 @@ function LeftPanel() {
   )
 }
 
+
 // ── Right panel ────────────────────────────────────────────────────────────
 
-function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
-  const { loginWithRedirect } = useAuth0()
-
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
-
+function RightPanel({
+  onNavigate,
+}: {
+  onNavigate: (page: string) => void
+}) {
+  const {
+    loginWithRedirect,
+    isLoading,
+  } = useAuth0()
 
   const handleLogin = async () => {
-  
+    try {
       await loginWithRedirect()
+    } catch (error) {
+      console.error("Login failed:", error)
+    }
   }
-  
+
   return (
     <div
       style={{
@@ -701,7 +724,13 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
         minHeight: "100vh",
       }}
     >
-      <div style={{ width: "100%", maxWidth: "400px" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "400px",
+        }}
+      >
+        {/* Logo */}
         <div
           style={{
             display: "flex",
@@ -724,6 +753,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
           >
             <Logo color="#fff" size={18} />
           </div>
+
           <span
             style={{
               fontSize: "17px",
@@ -736,6 +766,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
           </span>
         </div>
 
+        {/* Heading */}
         <div style={{ marginBottom: "32px" }}>
           <h2
             style={{
@@ -748,13 +779,21 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
           >
             Welcome back
           </h2>
-          <p style={{ fontSize: "14px", color: "#6B7280", lineHeight: 1.6 }}>
+
+          <p
+            style={{
+              fontSize: "14px",
+              color: "#6B7280",
+              lineHeight: 1.6,
+            }}
+          >
             Sign in to access your Technical Debt
             <br />
             Analytics Dashboard.
           </p>
         </div>
 
+        {/* Auth0 card */}
         <div
           style={{
             background: "#fff",
@@ -765,147 +804,109 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
             border: "1px solid #E5E7EB",
           }}
         >
+          {/* Auth0 icon */}
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "18px" }}
+            style={{
+              textAlign: "center",
+              marginBottom: "24px",
+            }}
           >
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="you@company.com"
-              icon={<MailIcon />}
-              value={email}
-              onChange={setEmail}
-              primaryColor={PRIMARY}
-            />
+            <div
+              style={{
+                width: "56px",
+                height: "56px",
+                margin: "0 auto 16px",
+                borderRadius: "14px",
+                background: "#EFF6FF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Logo color={PRIMARY} size={26} />
+            </div>
 
-            <Input
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
-              icon={<LockIcon />}
-              value={password}
-              onChange={setPassword}
-              primaryColor={PRIMARY}
-              rightElement={
-                <button
-                  onClick={() => setShowPassword((v) => !v)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "#9CA3AF",
-                    padding: "4px",
-                    display: "flex",
-                    transition: "color 0.15s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = PRIMARY)}
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = "#9CA3AF")
-                  }
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  <EyeIcon open={showPassword} />
-                </button>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#0F172A",
+              }}
+            >
+              Sign in securely
+            </h3>
+
+            <p
+              style={{
+                marginTop: "8px",
+                marginBottom: 0,
+                fontSize: "13px",
+                lineHeight: 1.6,
+                color: "#6B7280",
+              }}
+            >
+              Continue to Auth0 to securely sign in
+              <br />
+              to your DebtLens account.
+            </p>
+          </div>
+
+          {/* Login button */}
+          <button
+            type="button"
+            onClick={handleLogin}
+            disabled={isLoading}
+            style={{
+              width: "100%",
+              height: "48px",
+              border: "none",
+              borderRadius: "10px",
+              background: isLoading ? "#93C5FD" : PRIMARY,
+              color: "#fff",
+              fontSize: "14px",
+              fontWeight: 600,
+              cursor: isLoading ? "not-allowed" : "pointer",
+              boxShadow: `0 4px 12px ${SHADOW}`,
+              transition: "all 0.15s ease",
+              fontFamily: "Inter, sans-serif",
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.background = PRIMARY_HOVER
               }
-            />
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.background = PRIMARY
+              }
+            }}
+          >
+            {isLoading
+              ? "Redirecting..."
+              : "Continue with Auth0"}
+          </button>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  cursor: "pointer",
-                }}
-              >
-                <div
-                  onClick={() => setRememberMe((v) => !v)}
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "5px",
-                    border: `2px solid ${rememberMe ? PRIMARY : "#D1D5DB"}`,
-                    background: rememberMe ? PRIMARY : "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                    flexShrink: 0,
-                  }}
-                >
-                  {rememberMe && (
-                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                      <path
-                        d="M2 6l3 3 5-5"
-                        stroke="#fff"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </div>
-                <span
-                  style={{
-                    fontSize: "13px",
-                    color: "#6B7280",
-                    fontWeight: 500,
-                  }}
-                >
-                  Remember me
-                </span>
-              </label>
-              <button
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  color: PRIMARY,
-                  padding: "0",
-                  fontFamily: "Inter, sans-serif",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = PRIMARY_HOVER)
-                }
-                onMouseLeave={(e) => (e.currentTarget.style.color = PRIMARY)}
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            <Button
-              onClick={handleLogin}
-              primaryColor={PRIMARY}
-              primaryHover={PRIMARY_HOVER}
-              shadowColor={SHADOW}
-            >
-              Sign In
-            </Button>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                margin: "2px 0",
-              }}
-            >
-              
-            </div>
-
-            
+          {/* Security message */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              marginTop: "16px",
+              color: "#9CA3AF",
+              fontSize: "11px",
+            }}
+          >
+            <span>🔒</span>
+            <span>
+              Secure authentication powered by Auth0
+            </span>
           </div>
         </div>
 
+        {/* Register */}
         <p
           style={{
             textAlign: "center",
@@ -916,6 +917,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
         >
           Don't have an account?{" "}
           <button
+            type="button"
             onClick={() => onNavigate("register")}
             style={{
               background: "none",
@@ -927,13 +929,18 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
               padding: "0",
               fontFamily: "Inter, sans-serif",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = PRIMARY_HOVER)}
-            onMouseLeave={(e) => (e.currentTarget.style.color = PRIMARY)}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = PRIMARY_HOVER)
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = PRIMARY)
+            }
           >
             Create Account
           </button>
         </p>
 
+        {/* Terms */}
         <p
           style={{
             textAlign: "center",
@@ -945,6 +952,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
         >
           By signing in, you agree to our{" "}
           <button
+            type="button"
             style={{
               background: "none",
               border: "none",
@@ -959,6 +967,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
           </button>{" "}
           and{" "}
           <button
+            type="button"
             style={{
               background: "none",
               border: "none",
@@ -977,6 +986,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
   )
 }
 
+
 // ── Page export ────────────────────────────────────────────────────────────
 
 export default function LoginPage({
@@ -993,15 +1003,32 @@ export default function LoginPage({
       }}
     >
       <style>{`
-        @media (max-width: 900px) { .login-left { display: none !important; } }
+        @media (max-width: 900px) {
+          .login-left {
+            display: none !important;
+          }
+        }
       `}</style>
+
+      {/* Left side */}
       <div
         className="login-left"
-        style={{ flex: "0 0 55%", minWidth: 0, display: "flex" }}
+        style={{
+          flex: "0 0 55%",
+          minWidth: 0,
+          display: "flex",
+        }}
       >
-        <LeftPanel/>
+        <LeftPanel />
       </div>
-      <div style={{ flex: "0 0 45%", minWidth: 0 }}>
+
+      {/* Right side */}
+      <div
+        style={{
+          flex: "0 0 45%",
+          minWidth: 0,
+        }}
+      >
         <RightPanel onNavigate={onNavigate} />
       </div>
     </div>
