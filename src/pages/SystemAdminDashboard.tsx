@@ -66,7 +66,7 @@ const stats = [
 ]
 
 export default function SystemAdminDashboard() {
-  const [activeNav, setActiveNav] = useState('overview')
+  const activeNav = 'overview'
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (

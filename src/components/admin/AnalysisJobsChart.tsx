@@ -28,7 +28,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export default function AnalysisJobsChart() {
-  const [range, setRange] = useState('7 Days')
+  const [range] = useState('7 Days')
   const [dropHover, setDropHover] = useState(false)
 
   return (
