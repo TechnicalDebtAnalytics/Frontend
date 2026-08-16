@@ -2,6 +2,7 @@ import { useState } from "react"
 import Input from "../components/common/Input"
 import Button from "../components/common/Button"
 import Logo from "../components/common/Logo"
+import { useNavigate } from 'react-router-dom'
 
 const PRIMARY = "#2563EB"
 const PRIMARY_HOVER = "#1D4ED8"
@@ -673,7 +674,9 @@ function LeftPanel() {
 
 // ── Right panel ────────────────────────────────────────────────────────────
 
-function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
+function RightPanel() {
+  const navigate = useNavigate()
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -681,9 +684,13 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
   const [loading, setLoading] = useState(false)
 
   const handleSignIn = () => {
-    setLoading(true)
-    setTimeout(() => setLoading(false), 1800)
-  }
+  setLoading(true)
+
+  setTimeout(() => {
+    setLoading(false)
+    navigate("/systemDashboard")
+  }, 1800)
+}
 
   return (
     <div
@@ -913,7 +920,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
         >
           Don't have an account?{" "}
           <button
-            onClick={() => onNavigate("register")}
+            onClick={() => navigate("/register")}
             style={{
               background: "none",
               border: "none",
@@ -976,11 +983,7 @@ function RightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
 
 // ── Page export ────────────────────────────────────────────────────────────
 
-export default function LoginPage({
-  onNavigate,
-}: {
-  onNavigate: (page: string) => void
-}) {
+export default function LoginPage() {
   return (
     <div
       style={{
@@ -999,7 +1002,7 @@ export default function LoginPage({
         <LeftPanel/>
       </div>
       <div style={{ flex: "0 0 45%", minWidth: 0 }}>
-        <RightPanel onNavigate={onNavigate} />
+        <RightPanel />
       </div>
     </div>
   )
