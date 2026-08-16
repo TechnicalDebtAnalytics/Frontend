@@ -119,7 +119,7 @@ export default function SystemAdminDashboard() {
           <div className="chart-row" style={{ display: 'flex', gap: '20px' }}>
             <div style={{ flex: '1 1 60%', minWidth: 0 }}>
               <AnalysisJobsChart />
-            </div>
+            </div>RepositoriesPage.tsx
             <div style={{ flex: '1 1 36%', minWidth: '280px' }}>
               <JobStatusChart />
             </div>

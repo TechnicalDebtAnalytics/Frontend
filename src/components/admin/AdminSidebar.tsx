@@ -121,6 +121,10 @@ export default function AdminSidebar({ activeItem = 'overview', collapsed = fals
                 if (item.id === 'companies'){
                   navigate('/systemDashboard/companies')
                 }
+
+                if (item.id === 'repositories') {
+                  navigate('/systemDashboard/repositories')
+                }
                 }}
                 onMouseEnter={() => setHovered(item.id)}
               onMouseLeave={() => setHovered(null)}
