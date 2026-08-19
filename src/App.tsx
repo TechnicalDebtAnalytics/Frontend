@@ -1,16 +1,129 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import UserDashboard from './pages/UserDashboard'
 
 type Page = 'login' | 'register'
 
+const ROLE_CLAIM = 'https://debtlens.example.com/roles'
+
 export default function App() {
   const [page, setPage] = useState<Page>('login')
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [roleLoading, setRoleLoading] = useState(true)
+
+  const {
+    isAuthenticated,
+    isLoading,
+    getIdTokenClaims,
+  } = useAuth0()
 
   const navigate = (target: string) => {
-    if (target === 'login' || target === 'register') setPage(target)
+    if (target === 'login' || target === 'register') {
+      setPage(target)
+    }
   }
 
-  if (page === 'register') return <RegisterPage onNavigate={navigate} />
+  useEffect(() => {
+    const loadUserRole = async () => {
+      /*
+       * Auth0 has not authenticated the user.
+       */
+      if (!isAuthenticated) {
+        setUserRole(null)
+        setRoleLoading(false)
+        return
+      }
+
+      /*
+       * Auth0 user is authenticated.
+       * Get the ID token claims.
+       */
+      try {
+        const claims = await getIdTokenClaims()
+
+        console.log('AUTH0 ID TOKEN CLAIMS:', claims)
+
+        const roles = claims?.[ROLE_CLAIM] as string[] | undefined
+
+        console.log('AUTH0 ROLES:', roles)
+
+        /*
+         * Check whether SYSTEM_USER exists.
+         */
+        if (roles?.includes('SYSTEM_USER')) {
+          setUserRole('SYSTEM_USER')
+        } else {
+          setUserRole(null)
+        }
+      } catch (error) {
+        console.error('Failed to get ID token claims:', error)
+        setUserRole(null)
+      } finally {
+        setRoleLoading(false)
+      }
+    }
+
+    loadUserRole()
+  }, [isAuthenticated, getIdTokenClaims])
+
+  /*
+   * Auth0 is still loading.
+   */
+  if (isLoading || roleLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        Loading...
+      </div>
+    )
+  }
+
+  /*
+   * User is authenticated.
+   */
+  if (isAuthenticated) {
+    /*
+     * ONLY SYSTEM_USER can see UserDashboard.
+     */
+    if (userRole === 'SYSTEM_USER') {
+      return <UserDashboard />
+    }
+
+    /*
+     * Authenticated but no SYSTEM_USER role.
+     */
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <h2>Access Denied</h2>
+
+          <p>
+            You do not have permission to access this dashboard.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  /*
+   * User is NOT authenticated.
+   */
+  if (page === 'register') {
+    return <RegisterPage onNavigate={navigate} />
+  }
+
   return <LoginPage onNavigate={navigate} />
 }
