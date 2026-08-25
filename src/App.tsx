@@ -9,7 +9,19 @@ type Page = 'login' | 'register'
 const ROLE_CLAIM = 'https://debtlens.example.com/roles'
 
 export default function App() {
-  const [page, setPage] = useState<Page>('login')
+  const [page, setPage] = useState<Page>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname;
+    if (
+      params.has('token') ||
+      params.get('page') === 'register' ||
+      path.includes('/register') ||
+      path.includes('/invitation')
+    ) {
+      return 'register';
+    }
+    return 'login';
+  })
   const [userRole, setUserRole] = useState<string | null>(null)
   const [roleLoading, setRoleLoading] = useState(true)
 
