@@ -1052,7 +1052,28 @@ export default function RegisterPage({
       }}
     >
       <style>{`
-        @media (max-width: 900px) {
+  frontend@0.0.0 build
+> tsc -b && vite build
+
+src/pages/UserDashboard.tsx:33:3 - error TS6133: 'FileText' is declared but its value is never read.
+
+33   FileText,
+     ~~~~~~~~
+
+src/pages/UserDashboard.tsx:34:3 - error TS6133: 'AlertTriangle' is declared but its value is never read.
+
+34   AlertTriangle,
+     ~~~~~~~~~~~~~
+
+src/pages/UserDashboard.tsx:38:3 - error TS6133: 'CheckCheck' is declared but its value is never read.
+
+38   CheckCheck,
+     ~~~~~~~~~~
+
+
+Found 3 errors.
+
+PS C:\Users\Muditha\Documents\GitHub\Frontend>        @media (max-width: 900px) {
           .register-left {
             display: none !important;
           }

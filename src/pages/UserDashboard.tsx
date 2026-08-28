@@ -30,12 +30,9 @@ import {
   CheckCircle2,
   Inbox,
   Play,
-  FileText,
-  AlertTriangle,
   TrendingUp,
   Code2,
   Tag,
-  CheckCheck,
   FileCode,
 } from "lucide-react";
 
