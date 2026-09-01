@@ -64,7 +64,9 @@ export default function App() {
         /*
          * Check whether SYSTEM_USER exists.
          */
-        if (roles?.includes('SYSTEM_USER')) {
+        if (roles?.includes('SYSTEM_ADMIN')) {
+          setUserRole('SYSTEM_ADMIN')
+        } else if (roles?.includes('SYSTEM_USER')) {
           setUserRole('SYSTEM_USER')
         } else {
           setUserRole(null)
@@ -104,6 +106,9 @@ export default function App() {
     /*
      * ONLY SYSTEM_USER can see UserDashboard.
      */
+    if (userRole === 'SYSTEM_ADMIN') {
+      return <div>System Admin Dashboard</div>
+    }
     if (userRole === 'SYSTEM_USER') {
       return <UserDashboard />
     }
