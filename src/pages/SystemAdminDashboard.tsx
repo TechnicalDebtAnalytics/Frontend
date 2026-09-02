@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import SystemAdminCompanies from './SystemAdminCompanies'
+import type { AdminCompany } from './SystemAdminCompanies'
+import SystemAdminCompanyDetails from './SystemAdminCompanyDetails'
 import SystemAdminUsers from './SystemAdminUsers'
 import './SystemAdminDashboard.css'
 
@@ -10,6 +12,7 @@ export default function SystemAdminDashboard() {
   const { getAccessTokenSilently } = useAuth0()
 
   const [activePage, setActivePage] = useState<AdminPage>('dashboard')
+  const [selectedCompany, setSelectedCompany] = useState<AdminCompany | null>(null)
 
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -98,7 +101,10 @@ export default function SystemAdminDashboard() {
 
           <button
             className={`nav-item ${activePage === 'companies' ? 'active' : ''}`}
-            onClick={() => setActivePage('companies')}
+            onClick={() => {
+              setActivePage('companies')
+              setSelectedCompany(null)
+            }}
           >
             <span className="nav-icon">□</span>
             <span>Companies</span>
@@ -161,7 +167,9 @@ export default function SystemAdminDashboard() {
 
           <div className="header-title">
             {activePage === 'companies'
-              ? 'Companies'
+              ? selectedCompany
+                ? `Companies / ${selectedCompany.companyName}`
+                : 'Companies'
               : activePage === 'users'
                 ? 'Users'
                 : 'Dashboard'}
@@ -195,7 +203,17 @@ export default function SystemAdminDashboard() {
         {/* ================= CONTENT AREA ================= */}
         {activePage === 'companies' ? (
           <section className="dashboard-content">
-            <SystemAdminCompanies />
+            {selectedCompany ? (
+              <SystemAdminCompanyDetails
+                companyId={selectedCompany.companyId}
+                initialCompanyData={selectedCompany}
+                onBack={() => setSelectedCompany(null)}
+              />
+            ) : (
+              <SystemAdminCompanies
+                onSelectCompany={(company) => setSelectedCompany(company)}
+              />
+            )}
           </section>
         ) : activePage === 'users' ? (
           <section className="dashboard-content">

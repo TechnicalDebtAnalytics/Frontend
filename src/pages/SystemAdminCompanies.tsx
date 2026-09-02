@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 
-interface AdminCompany {
+export interface AdminCompany {
   companyId: number
   companyName: string
   githubOrganizationUrl: string
@@ -12,7 +12,11 @@ interface AdminCompany {
   createdAt: string
 }
 
-export default function SystemAdminCompanies() {
+interface SystemAdminCompaniesProps {
+  onSelectCompany?: (company: AdminCompany) => void
+}
+
+export default function SystemAdminCompanies({ onSelectCompany }: SystemAdminCompaniesProps = {}) {
   const { getAccessTokenSilently } = useAuth0()
 
   const [companies, setCompanies] = useState<AdminCompany[]>([])
@@ -225,7 +229,12 @@ export default function SystemAdminCompanies() {
 
             <tbody>
               {companies.map((company) => (
-                <tr key={company.companyId}>
+                <tr
+                  key={company.companyId}
+                  className="clickable-row"
+                  onClick={() => onSelectCompany?.(company)}
+                  title="Click to view company details"
+                >
 
                   <td>
                     <div className="company-name-cell">
