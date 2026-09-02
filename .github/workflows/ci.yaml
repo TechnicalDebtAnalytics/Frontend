@@ -6,11 +6,13 @@ on:
       - main
       - develop
       - Muditha
+      - deployment
   pull_request:
     branches:
       - main
       - develop
       - Muditha
+      - deployment
 
 permissions:
   contents: read
@@ -41,7 +43,7 @@ jobs:
     name: Build & Push Docker Image
     needs: test-and-build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Muditha')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Muditha' || github.ref == 'refs/heads/deployment')
 
     steps:
       - name: Checkout source code
