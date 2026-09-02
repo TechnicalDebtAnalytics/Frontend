@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import SystemAdminCompanies from './SystemAdminCompanies'
+import SystemAdminUsers from './SystemAdminUsers'
 import './SystemAdminDashboard.css'
+
+type AdminPage = 'dashboard' | 'companies' | 'users'
 
 export default function SystemAdminDashboard() {
   const { getAccessTokenSilently } = useAuth0()
+
+  const [activePage, setActivePage] = useState<AdminPage>('dashboard')
 
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -82,17 +88,26 @@ export default function SystemAdminDashboard() {
 
         <nav className="sidebar-nav">
 
-          <button className="nav-item active">
+          <button
+            className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActivePage('dashboard')}
+          >
             <span className="nav-icon">▦</span>
             <span>Dashboard</span>
           </button>
 
-          <button className="nav-item">
+          <button
+            className={`nav-item ${activePage === 'companies' ? 'active' : ''}`}
+            onClick={() => setActivePage('companies')}
+          >
             <span className="nav-icon">□</span>
             <span>Companies</span>
           </button>
 
-          <button className="nav-item">
+          <button
+            className={`nav-item ${activePage === 'users' ? 'active' : ''}`}
+            onClick={() => setActivePage('users')}
+          >
             <span className="nav-icon">♙</span>
             <span>Users</span>
           </button>
@@ -145,7 +160,11 @@ export default function SystemAdminDashboard() {
         <header className="admin-header">
 
           <div className="header-title">
-            Dashboard
+            {activePage === 'companies'
+              ? 'Companies'
+              : activePage === 'users'
+                ? 'Users'
+                : 'Dashboard'}
           </div>
 
           <div className="header-actions">
@@ -173,6 +192,16 @@ export default function SystemAdminDashboard() {
 
 
         {/* ================= CONTENT ================= */}
+        {/* ================= CONTENT AREA ================= */}
+        {activePage === 'companies' ? (
+          <section className="dashboard-content">
+            <SystemAdminCompanies />
+          </section>
+        ) : activePage === 'users' ? (
+          <section className="dashboard-content">
+            <SystemAdminUsers />
+          </section>
+        ) : (
         <section className="dashboard-content">
 
           {/* ================= PAGE HEADING ================= */}
@@ -641,6 +670,7 @@ export default function SystemAdminDashboard() {
           </div>
 
         </section>
+        )}
 
       </main>
 
