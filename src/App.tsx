@@ -3,6 +3,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import UserDashboard from './pages/UserDashboard'
+import SystemAdminDashboard from './pages/SystemAdminDashboard'
 
 type Page = 'login' | 'register'
 
@@ -10,18 +11,21 @@ const ROLE_CLAIM = 'https://debtlens.example.com/roles'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const path = window.location.pathname;
+    const params = new URLSearchParams(window.location.search)
+    const path = window.location.pathname
+
     if (
       params.has('token') ||
       params.get('page') === 'register' ||
       path.includes('/register') ||
       path.includes('/invitation')
     ) {
-      return 'register';
+      return 'register'
     }
-    return 'login';
+
+    return 'login'
   })
+
   const [userRole, setUserRole] = useState<string | null>(null)
   const [roleLoading, setRoleLoading] = useState(true)
 
@@ -29,6 +33,7 @@ export default function App() {
     isAuthenticated,
     isLoading,
     getIdTokenClaims,
+    getAccessTokenSilently,
   } = useAuth0()
 
   const navigate = (target: string) => {
@@ -62,7 +67,7 @@ export default function App() {
         console.log('AUTH0 ROLES:', roles)
 
         /*
-         * Check whether SYSTEM_USER exists.
+         * Check whether SYSTEM_ADMIN exists.
          */
         if (roles?.includes('SYSTEM_ADMIN')) {
           setUserRole('SYSTEM_ADMIN')
@@ -104,17 +109,21 @@ export default function App() {
    */
   if (isAuthenticated) {
     /*
-     * ONLY SYSTEM_USER can see UserDashboard.
+     * SYSTEM ADMIN
      */
     if (userRole === 'SYSTEM_ADMIN') {
-      return <div>System Admin Dashboard</div>
+      return <SystemAdminDashboard />
     }
+
+    /*
+     * NORMAL SYSTEM USER
+     */
     if (userRole === 'SYSTEM_USER') {
       return <UserDashboard />
     }
 
     /*
-     * Authenticated but no SYSTEM_USER role.
+     * Authenticated user with an unknown role.
      */
     return (
       <div
@@ -128,7 +137,7 @@ export default function App() {
           <h2>Access Denied</h2>
 
           <p>
-            You do not have permission to access this dashboard.
+            You do not have permission to access this application.
           </p>
         </div>
       </div>
