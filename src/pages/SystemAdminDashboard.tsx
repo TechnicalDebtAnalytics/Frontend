@@ -4,9 +4,10 @@ import SystemAdminCompanies from './SystemAdminCompanies'
 import type { AdminCompany } from './SystemAdminCompanies'
 import SystemAdminCompanyDetails from './SystemAdminCompanyDetails'
 import SystemAdminUsers from './SystemAdminUsers'
+import SystemAdminAnalysisJobs from './SystemAdminAnalysisJobs'
 import './SystemAdminDashboard.css'
 
-type AdminPage = 'dashboard' | 'companies' | 'users'
+type AdminPage = 'dashboard' | 'companies' | 'users' | 'jobs'
 
 export default function SystemAdminDashboard() {
   const { getAccessTokenSilently } = useAuth0()
@@ -118,7 +119,10 @@ export default function SystemAdminDashboard() {
             <span>Users</span>
           </button>
 
-          <button className="nav-item">
+          <button
+            className={`nav-item ${activePage === 'jobs' ? 'active' : ''}`}
+            onClick={() => setActivePage('jobs')}
+          >
             <span className="nav-icon">◌</span>
             <span>Analysis Jobs</span>
           </button>
@@ -172,7 +176,9 @@ export default function SystemAdminDashboard() {
                 : 'Companies'
               : activePage === 'users'
                 ? 'Users'
-                : 'Dashboard'}
+                : activePage === 'jobs'
+                  ? 'Analysis Jobs'
+                  : 'Dashboard'}
           </div>
 
           <div className="header-actions">
@@ -218,6 +224,10 @@ export default function SystemAdminDashboard() {
         ) : activePage === 'users' ? (
           <section className="dashboard-content">
             <SystemAdminUsers />
+          </section>
+        ) : activePage === 'jobs' ? (
+          <section className="dashboard-content">
+            <SystemAdminAnalysisJobs />
           </section>
         ) : (
         <section className="dashboard-content">
