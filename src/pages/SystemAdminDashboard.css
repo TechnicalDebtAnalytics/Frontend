@@ -1042,6 +1042,27 @@
   margin-right: 6px;
 }
 
+.user-name-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-id-sub {
+  color: #77798e;
+  font-size: 11px;
+}
+
+.github-user-badge {
+  background: #f0f0ff;
+  color: #5b5ce2;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-weight: 600;
+}
+
 
 /* ================= RESPONSIVE ================= */
 

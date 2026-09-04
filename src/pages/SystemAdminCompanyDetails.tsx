@@ -34,6 +34,18 @@ interface CompanyDetailsData {
   updatedAt?: string
 }
 
+interface CompanyUser {
+  userId: number
+  firstName: string
+  lastName: string
+  email: string
+  githubUsername: string
+  emailVerified: boolean
+  companyRole: string
+  companyName: string
+  createdAt: string
+}
+
 interface SystemAdminCompanyDetailsProps {
   companyId: number
   initialCompanyData?: AdminCompanySummary | null
@@ -51,12 +63,19 @@ export default function SystemAdminCompanyDetails({
 
   const [company, setCompany] = useState<CompanyDetailsData | null>(null)
   const [repositories, setRepositories] = useState<RepositoryData[]>([])
+  const [users, setUsers] = useState<CompanyUser[]>([])
+  
   const [loadingCompany, setLoadingCompany] = useState(true)
   const [loadingRepos, setLoadingRepos] = useState(true)
+  const [loadingUsers, setLoadingUsers] = useState(true)
+  
   const [companyError, setCompanyError] = useState<string | null>(null)
   const [reposError, setReposError] = useState<string | null>(null)
+  const [usersError, setUsersError] = useState<string | null>(null)
+  
   const [activeTab, setActiveTab] = useState<TabType>('overview')
 
+  /* 1. Fetch Company Details & Repositories */
   useEffect(() => {
     let isMounted = true
 
@@ -76,7 +95,7 @@ export default function SystemAdminCompanyDetails({
       try {
         const token = await getAccessTokenSilently()
 
-        // 1. Fetch Company Details from GET /api/companies/{companyId}
+        // Fetch Company Details from GET /api/companies/{companyId}
         const companyRes = await fetch(
           `http://localhost:8080/api/companies/${companyId}`,
           {
@@ -103,7 +122,7 @@ export default function SystemAdminCompanyDetails({
           }
         }
 
-        // 2. Fetch Repositories from GET /api/companies/{companyId}/repositories
+        // Fetch Repositories from GET /api/companies/{companyId}/repositories
         try {
           const reposRes = await fetch(
             `http://localhost:8080/api/companies/${companyId}/repositories`,
@@ -123,7 +142,7 @@ export default function SystemAdminCompanyDetails({
             }
           } else {
             console.warn(
-              `GET /api/companies/${companyId}/repositories returned ${reposRes.status}. Using company data repositories fallback.`
+              `GET /api/companies/${companyId}/repositories returned ${reposRes.status}. Using company data fallback.`
             )
           }
         } catch (rErr) {
@@ -144,6 +163,57 @@ export default function SystemAdminCompanyDetails({
     }
 
     fetchDetails()
+
+    return () => {
+      isMounted = false
+    }
+  }, [companyId, getAccessTokenSilently])
+
+  /* 2. Fetch Company Users from GET /api/admin/companies/{companyId}/users */
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchUsers = async () => {
+      if (!companyId || isNaN(companyId)) return
+
+      setLoadingUsers(true)
+      setUsersError(null)
+
+      try {
+        const token = await getAccessTokenSilently()
+        const res = await fetch(
+          `http://localhost:8080/api/admin/companies/${companyId}/users`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (!res.ok) {
+          throw new Error(`Failed to load company users (${res.status}).`)
+        }
+
+        const data: CompanyUser[] = await res.json()
+        if (isMounted) {
+          setUsers(data)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setUsersError(
+            err instanceof Error ? err.message : 'Failed to load company users.'
+          )
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingUsers(false)
+        }
+      }
+    }
+
+    fetchUsers()
 
     return () => {
       isMounted = false
@@ -174,6 +244,19 @@ export default function SystemAdminCompanyDetails({
     }
   }
 
+  const getUserInitials = (user: CompanyUser): string => {
+    const fn = user.firstName ? user.firstName.charAt(0).toUpperCase() : ''
+    const ln = user.lastName ? user.lastName.charAt(0).toUpperCase() : ''
+    if (fn || ln) return `${fn}${ln}`
+    if (user.email) return user.email.charAt(0).toUpperCase()
+    return 'U'
+  }
+
+  const getUserFullName = (user: CompanyUser): string => {
+    const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim()
+    return fullName || user.email || `User #${user.userId}`
+  }
+
   const displayCompany = company || (initialCompanyData ? {
     companyId: initialCompanyData.companyId,
     companyName: initialCompanyData.companyName,
@@ -185,8 +268,8 @@ export default function SystemAdminCompanyDetails({
 
   const ownerName = displayCompany?.createdByName || initialCompanyData?.superAdminName || '—'
   const ownerEmail = initialCompanyData?.superAdminEmail || '—'
-  const totalMembers = initialCompanyData?.totalMembers ?? '—'
-  const totalRepos = repositories.length || displayCompany?.totalRepositories || 0
+  const totalMembersCount = users.length > 0 ? users.length : (initialCompanyData?.totalMembers ?? '—')
+  const totalReposCount = repositories.length || displayCompany?.totalRepositories || 0
 
   /* ================= LOADING STATE ================= */
   if (loadingCompany && !displayCompany) {
@@ -280,13 +363,13 @@ export default function SystemAdminCompanyDetails({
           className={`tab-item ${activeTab === 'repositories' ? 'active' : ''}`}
           onClick={() => setActiveTab('repositories')}
         >
-          Repositories <span className="tab-badge">{totalRepos}</span>
+          Repositories <span className="tab-badge">{totalReposCount}</span>
         </button>
         <button
           className={`tab-item ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
         >
-          Users <span className="tab-badge">{totalMembers}</span>
+          Users <span className="tab-badge">{totalMembersCount}</span>
         </button>
         <button
           className={`tab-item ${activeTab === 'jobs' ? 'active' : ''}`}
@@ -305,7 +388,7 @@ export default function SystemAdminCompanyDetails({
                 <span className="stat-icon">📦</span>
               </div>
               <div className="stat-info">
-                <span className="stat-value">{totalRepos}</span>
+                <span className="stat-value">{totalReposCount}</span>
                 <span className="stat-label">Total Repositories</span>
               </div>
             </div>
@@ -315,7 +398,7 @@ export default function SystemAdminCompanyDetails({
                 <span className="stat-icon">👥</span>
               </div>
               <div className="stat-info">
-                <span className="stat-value">{totalMembers}</span>
+                <span className="stat-value">{totalMembersCount}</span>
                 <span className="stat-label">Total Members</span>
               </div>
             </div>
@@ -472,17 +555,95 @@ export default function SystemAdminCompanyDetails({
         </div>
       )}
 
-      {/* Tab Content: Users Placeholder */}
+      {/* Tab Content: Users */}
       {activeTab === 'users' && (
         <div className="details-tab-content">
           <div className="dashboard-card">
-            <div className="companies-empty" style={{ padding: '50px 20px' }}>
-              <div className="empty-icon">👥</div>
-              <h3>Company Users Management</h3>
-              <p>
-                User management and access control for {displayCompany?.companyName} will be available here.
-              </p>
+            <div className="card-header">
+              <div>
+                <h2>Company Users</h2>
+                <p>Users registered under {displayCompany?.companyName}</p>
+              </div>
+              <span className="count-pill">{users.length} Users</span>
             </div>
+
+            {loadingUsers ? (
+              <div className="companies-loading" style={{ minHeight: '200px' }}>
+                <div className="loading-spinner" />
+                <p>Loading company users...</p>
+              </div>
+            ) : usersError ? (
+              <div className="companies-error" style={{ minHeight: '200px' }}>
+                <div className="error-icon">!</div>
+                <h3>Failed to Load Users</h3>
+                <p>{usersError}</p>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="companies-empty" style={{ minHeight: '200px' }}>
+                <div className="empty-icon">👥</div>
+                <h3>No Users Found</h3>
+                <p>No members or super admins are currently associated with this company.</p>
+              </div>
+            ) : (
+              <div className="companies-table-wrapper">
+                <table className="companies-table">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Email</th>
+                      <th>GitHub Username</th>
+                      <th>Role</th>
+                      <th>Joined Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <tr key={user.userId}>
+                        <td>
+                          <div className="company-name-cell">
+                            <div className="company-avatar">
+                              {getUserInitials(user)}
+                            </div>
+                            <div className="user-name-wrapper">
+                              <strong>{getUserFullName(user)}</strong>
+                              <small className="user-id-sub">ID: #{user.userId}</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="user-email-text">{user.email || '—'}</span>
+                        </td>
+                        <td>
+                          {user.githubUsername ? (
+                            <span className="github-user-badge">
+                              @{user.githubUsername}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            className={`role-badge ${
+                              user.companyRole === 'Super Admin'
+                                ? 'role-super-admin'
+                                : 'role-member'
+                            }`}
+                          >
+                            {user.companyRole}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="date-text">
+                            {formatDate(user.createdAt)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
