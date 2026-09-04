@@ -447,6 +447,34 @@
   font-weight: 500;
 }
 
+.degraded {
+  background: #fffbeb;
+  color: #d97706;
+  padding: 6px 9px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.down {
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 6px 9px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.status-dot.degraded,
+.health-dot.degraded {
+  background: #f59e0b;
+}
+
+.status-dot.down,
+.health-dot.down {
+  background: #ef4444;
+}
+
 
 /* ================= ACTIVITY ================= */
 

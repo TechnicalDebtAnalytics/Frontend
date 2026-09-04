@@ -9,6 +9,20 @@ import './SystemAdminDashboard.css'
 
 type AdminPage = 'dashboard' | 'companies' | 'users' | 'jobs'
 
+export interface HealthItem {
+  name: string
+  key: string
+  description: string
+  status: 'UP' | 'DEGRADED' | 'DOWN'
+  details?: string
+}
+
+export interface SystemHealth {
+  overallStatus: 'UP' | 'DEGRADED' | 'DOWN'
+  timestamp: string
+  services: HealthItem[]
+}
+
 export default function SystemAdminDashboard() {
   const { getAccessTokenSilently } = useAuth0()
 
@@ -23,6 +37,31 @@ export default function SystemAdminDashboard() {
   })
 
   const [statsLoading, setStatsLoading] = useState(true)
+  const [health, setHealth] = useState<SystemHealth | null>(null)
+  const [healthLoading, setHealthLoading] = useState(true)
+
+  const loadHealth = async () => {
+    try {
+      const token = await getAccessTokenSilently()
+      const response = await fetch('http://localhost:8080/api/admin/health', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to load system health: ${response.status}`)
+      }
+      const data: SystemHealth = await response.json()
+      console.log('ADMIN DASHBOARD HEALTH:', data)
+      setHealth(data)
+    } catch (error) {
+      console.error('Failed to load system health:', error)
+    } finally {
+      setHealthLoading(false)
+    }
+  }
 
   useEffect(() => {
     const loadStats = async () => {
@@ -62,6 +101,7 @@ export default function SystemAdminDashboard() {
     }
 
     loadStats()
+    loadHealth()
   }, [getAccessTokenSilently])
 
   return (
@@ -248,11 +288,14 @@ export default function SystemAdminDashboard() {
             </div>
 
             <div className="system-status">
-
-              <span className="status-dot"></span>
-
-              All systems operational
-
+              <span className={`status-dot ${health?.overallStatus === 'DEGRADED' ? 'degraded' : health?.overallStatus === 'DOWN' ? 'down' : ''}`} />
+              {healthLoading
+                ? 'Checking status...'
+                : health?.overallStatus === 'UP'
+                  ? 'All systems operational'
+                  : health?.overallStatus === 'DEGRADED'
+                    ? 'Systems degraded'
+                    : 'System disruption'}
             </div>
 
           </div>
@@ -408,154 +451,65 @@ export default function SystemAdminDashboard() {
 
                 </div>
 
-                <button className="view-button">
-                  View details
+                <button
+                  className="view-button"
+                  onClick={() => {
+                    setHealthLoading(true)
+                    loadHealth()
+                  }}
+                >
+                  Refresh
                 </button>
 
               </div>
 
 
               <div className="health-list">
-
-                {/* APPLICATION SERVICE */}
-                <div className="health-item">
-
-                  <div className="health-name">
-
-                    <span className="health-dot"></span>
-
-                    <div>
-
-                      <strong>
-                        Application Service
-                      </strong>
-
-                      <small>
-                        Spring Boot backend
-                      </small>
-
-                    </div>
-
+                {healthLoading ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                    Checking service health...
                   </div>
-
-                  <span className="operational">
-                    Operational
-                  </span>
-
-                </div>
-
-
-                {/* MACHINE LEARNING SERVICE */}
-                <div className="health-item">
-
-                  <div className="health-name">
-
-                    <span className="health-dot"></span>
-
-                    <div>
-
-                      <strong>
-                        Machine Learning Service
-                      </strong>
-
-                      <small>
-                        SATD and defect prediction
-                      </small>
-
-                    </div>
-
+                ) : !health || !health.services || health.services.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                    Unable to fetch health status.
                   </div>
+                ) : (
+                  health.services.map((srv) => (
+                    <div className="health-item" key={srv.key || srv.name}>
+                      <div className="health-name">
+                        <span
+                          className={`health-dot ${
+                            srv.status === 'DEGRADED'
+                              ? 'degraded'
+                              : srv.status === 'DOWN'
+                              ? 'down'
+                              : ''
+                          }`}
+                        />
+                        <div>
+                          <strong>{srv.name}</strong>
+                          <small>{srv.description}</small>
+                        </div>
+                      </div>
 
-                  <span className="operational">
-                    Operational
-                  </span>
-
-                </div>
-
-
-                {/* REPOSITORY ANALYSIS SERVICE */}
-                <div className="health-item">
-
-                  <div className="health-name">
-
-                    <span className="health-dot"></span>
-
-                    <div>
-
-                      <strong>
-                        Repository Analysis Service
-                      </strong>
-
-                      <small>
-                        Static analysis worker
-                      </small>
-
+                      <span
+                        className={
+                          srv.status === 'UP'
+                            ? 'operational'
+                            : srv.status === 'DEGRADED'
+                            ? 'degraded'
+                            : 'down'
+                        }
+                      >
+                        {srv.status === 'UP'
+                          ? 'Operational'
+                          : srv.status === 'DEGRADED'
+                          ? 'Degraded'
+                          : 'Unavailable'}
+                      </span>
                     </div>
-
-                  </div>
-
-                  <span className="operational">
-                    Operational
-                  </span>
-
-                </div>
-
-
-                {/* RABBITMQ */}
-                <div className="health-item">
-
-                  <div className="health-name">
-
-                    <span className="health-dot"></span>
-
-                    <div>
-
-                      <strong>
-                        RabbitMQ
-                      </strong>
-
-                      <small>
-                        Analysis message queue
-                      </small>
-
-                    </div>
-
-                  </div>
-
-                  <span className="operational">
-                    Operational
-                  </span>
-
-                </div>
-
-
-                {/* NEON DATABASE */}
-                <div className="health-item">
-
-                  <div className="health-name">
-
-                    <span className="health-dot"></span>
-
-                    <div>
-
-                      <strong>
-                        Neon Database
-                      </strong>
-
-                      <small>
-                        PostgreSQL database
-                      </small>
-
-                    </div>
-
-                  </div>
-
-                  <span className="operational">
-                    Operational
-                  </span>
-
-                </div>
-
+                  ))
+                )}
               </div>
 
             </div>
