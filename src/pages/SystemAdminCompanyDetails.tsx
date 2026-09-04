@@ -46,6 +46,20 @@ interface CompanyUser {
   createdAt: string
 }
 
+interface AnalysisJobData {
+  analysisId: number
+  repositoryId: number
+  repositoryName: string
+  repositoryUrl: string
+  branch?: string
+  startedByUserId?: number
+  startedByName?: string
+  status: string
+  startedAt: string
+  completedAt?: string
+  totalClassesAnalyzed?: number
+}
+
 interface SystemAdminCompanyDetailsProps {
   companyId: number
   initialCompanyData?: AdminCompanySummary | null
@@ -64,15 +78,18 @@ export default function SystemAdminCompanyDetails({
   const [company, setCompany] = useState<CompanyDetailsData | null>(null)
   const [repositories, setRepositories] = useState<RepositoryData[]>([])
   const [users, setUsers] = useState<CompanyUser[]>([])
-  
+  const [jobs, setJobs] = useState<AnalysisJobData[]>([])
+
   const [loadingCompany, setLoadingCompany] = useState(true)
   const [loadingRepos, setLoadingRepos] = useState(true)
   const [loadingUsers, setLoadingUsers] = useState(true)
-  
+  const [loadingJobs, setLoadingJobs] = useState(true)
+
   const [companyError, setCompanyError] = useState<string | null>(null)
   const [reposError, setReposError] = useState<string | null>(null)
   const [usersError, setUsersError] = useState<string | null>(null)
-  
+  const [jobsError, setJobsError] = useState<string | null>(null)
+
   const [activeTab, setActiveTab] = useState<TabType>('overview')
 
   /* 1. Fetch Company Details & Repositories */
@@ -214,6 +231,57 @@ export default function SystemAdminCompanyDetails({
     }
 
     fetchUsers()
+
+    return () => {
+      isMounted = false
+    }
+  }, [companyId, getAccessTokenSilently])
+
+  /* 3. Fetch Company Analysis Jobs from GET /api/admin/companies/{companyId}/analysis-jobs */
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchJobs = async () => {
+      if (!companyId || isNaN(companyId)) return
+
+      setLoadingJobs(true)
+      setJobsError(null)
+
+      try {
+        const token = await getAccessTokenSilently()
+        const res = await fetch(
+          `http://localhost:8080/api/admin/companies/${companyId}/analysis-jobs`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (!res.ok) {
+          throw new Error(`Failed to load analysis jobs (${res.status}).`)
+        }
+
+        const data: AnalysisJobData[] = await res.json()
+        if (isMounted) {
+          setJobs(data)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setJobsError(
+            err instanceof Error ? err.message : 'Failed to load analysis jobs.'
+          )
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingJobs(false)
+        }
+      }
+    }
+
+    fetchJobs()
 
     return () => {
       isMounted = false
@@ -375,7 +443,7 @@ export default function SystemAdminCompanyDetails({
           className={`tab-item ${activeTab === 'jobs' ? 'active' : ''}`}
           onClick={() => setActiveTab('jobs')}
         >
-          Analysis Jobs
+          Analysis Jobs <span className="tab-badge">{jobs.length}</span>
         </button>
       </div>
 
@@ -408,7 +476,7 @@ export default function SystemAdminCompanyDetails({
                 <span className="stat-icon">⚙</span>
               </div>
               <div className="stat-info">
-                <span className="stat-value">0</span>
+                <span className="stat-value">{loadingJobs ? '...' : jobs.length}</span>
                 <span className="stat-label">Analysis Jobs</span>
               </div>
             </div>
@@ -648,17 +716,98 @@ export default function SystemAdminCompanyDetails({
         </div>
       )}
 
-      {/* Tab Content: Analysis Jobs Placeholder */}
+      {/* Tab Content: Analysis Jobs */}
       {activeTab === 'jobs' && (
         <div className="details-tab-content">
           <div className="dashboard-card">
-            <div className="companies-empty" style={{ padding: '50px 20px' }}>
-              <div className="empty-icon">⚙</div>
-              <h3>Company Analysis Jobs</h3>
-              <p>
-                Historical technical debt analysis jobs for {displayCompany?.companyName} will be listed here.
-              </p>
+            <div className="card-header">
+              <div>
+                <h2>Company Analysis Jobs</h2>
+                <p>Technical debt analysis execution history for {displayCompany?.companyName}</p>
+              </div>
+              <span className="count-pill">{jobs.length} Jobs</span>
             </div>
+
+            {loadingJobs ? (
+              <div className="companies-loading" style={{ minHeight: '200px' }}>
+                <div className="loading-spinner" />
+                <p>Loading analysis jobs...</p>
+              </div>
+            ) : jobsError ? (
+              <div className="companies-error" style={{ minHeight: '200px' }}>
+                <div className="error-icon">!</div>
+                <h3>Failed to Load Analysis Jobs</h3>
+                <p>{jobsError}</p>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="companies-empty" style={{ minHeight: '200px' }}>
+                <div className="empty-icon">⚙</div>
+                <h3>No Analysis Jobs Found</h3>
+                <p>This company has not executed any analysis jobs yet.</p>
+              </div>
+            ) : (
+              <div className="companies-table-wrapper">
+                <table className="companies-table">
+                  <thead>
+                    <tr>
+                      <th>Job ID</th>
+                      <th>Repository</th>
+                      <th>Branch</th>
+                      <th>Status</th>
+                      <th>Started By</th>
+                      <th>Started At</th>
+                      <th>Completed At</th>
+                      <th>Classes Analyzed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobs.map((job) => (
+                      <tr key={job.analysisId}>
+                        <td>
+                          <strong>#{job.analysisId}</strong>
+                        </td>
+                        <td>
+                          <div className="company-name-cell">
+                            <span className="repo-icon">📦</span>
+                            <span>{job.repositoryName || `Repo #${job.repositoryId}`}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="branch-badge">
+                            {job.branch || 'main'}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`status-badge status-${(
+                              job.status || ''
+                            ).toLowerCase()}`}
+                          >
+                            {job.status}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="user-email-text">
+                            {job.startedByName || (job.startedByUserId ? `User #${job.startedByUserId}` : 'System')}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="date-text">{formatDate(job.startedAt)}</span>
+                        </td>
+                        <td>
+                          <span className="date-text">{formatDate(job.completedAt)}</span>
+                        </td>
+                        <td>
+                          <span className="count-pill">
+                            {job.totalClassesAnalyzed ?? 0}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

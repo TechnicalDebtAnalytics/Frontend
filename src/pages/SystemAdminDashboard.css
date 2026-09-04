@@ -823,6 +823,31 @@
   color: #c99030;
 }
 
+.status-completed {
+  background: #edf8f2;
+  color: #58a478;
+}
+
+.status-running {
+  background: #eef4ff;
+  color: #4a7fd4;
+}
+
+.status-queued {
+  background: #fff6e8;
+  color: #c99030;
+}
+
+.status-failed {
+  background: #fff0f0;
+  color: #e24b4b;
+}
+
+.status-cancelled {
+  background: #f3f3f5;
+  color: #77798e;
+}
+
 
 /* ================= COMPANY DETAILS PAGE ================= */
 
