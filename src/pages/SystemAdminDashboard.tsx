@@ -5,9 +5,10 @@ import type { AdminCompany } from './SystemAdminCompanies'
 import SystemAdminCompanyDetails from './SystemAdminCompanyDetails'
 import SystemAdminUsers from './SystemAdminUsers'
 import SystemAdminAnalysisJobs from './SystemAdminAnalysisJobs'
+import SystemAdminLogs from './SystemAdminLogs'
 import './SystemAdminDashboard.css'
 
-type AdminPage = 'dashboard' | 'companies' | 'users' | 'jobs'
+type AdminPage = 'dashboard' | 'companies' | 'users' | 'jobs' | 'logs'
 
 export interface HealthItem {
   name: string
@@ -167,7 +168,10 @@ export default function SystemAdminDashboard() {
             <span>Analysis Jobs</span>
           </button>
 
-          <button className="nav-item">
+          <button
+            className={`nav-item ${activePage === 'logs' ? 'active' : ''}`}
+            onClick={() => setActivePage('logs')}
+          >
             <span className="nav-icon">☰</span>
             <span>System Logs</span>
           </button>
@@ -218,7 +222,9 @@ export default function SystemAdminDashboard() {
                 ? 'Users'
                 : activePage === 'jobs'
                   ? 'Analysis Jobs'
-                  : 'Dashboard'}
+                  : activePage === 'logs'
+                    ? 'System Logs'
+                    : 'Dashboard'}
           </div>
 
           <div className="header-actions">
@@ -268,6 +274,10 @@ export default function SystemAdminDashboard() {
         ) : activePage === 'jobs' ? (
           <section className="dashboard-content">
             <SystemAdminAnalysisJobs />
+          </section>
+        ) : activePage === 'logs' ? (
+          <section className="dashboard-content">
+            <SystemAdminLogs />
           </section>
         ) : (
         <section className="dashboard-content">
