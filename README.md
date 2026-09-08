@@ -1,51 +1,60 @@
-# React + TypeScript + Vite
+# DebtLens Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**DebtLens** is an AI-powered technical debt analytics platform designed to help agile small-scale software teams identify, visualize, and prioritize technical debt.
 
-Currently, two official plugins are available:
+This repository contains the **frontend application** of DebtLens, providing the user interface for interacting with repository analysis, technical debt metrics, machine learning results, and project health information.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🚀 Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 🔐 User authentication
+- 📊 Technical debt analytics dashboard
+- 📈 Code and repository health visualization
+- 🔍 Repository analysis results
+- 🔥 Technical debt hotspot identification
+- 🤖 Machine learning insights
+- 🐞 Bug-proneness prediction results
+- 📝 Self-Admitted Technical Debt (SATD) insights
+- 🎯 Refactor-first prioritization
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠️ Technology Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **React** – User interface development
+- **TypeScript** – Type-safe application development
+- **Vite** – Development server and build tool
+- **ESLint** – Code quality and linting
+- **CSS** – UI styling
+- **REST APIs** – Communication with backend services
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 🏗️ System Architecture
 
-```
+The frontend is the presentation layer of the DebtLens system and communicates with the backend services to retrieve analysis and machine learning results.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
+```text
+                ┌──────────────┐
+                │     User     │
+                └──────┬───────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ DebtLens Frontend│
+              │ React + TypeScript│
+              └────────┬────────┘
+                       │
+                       ▼
+          ┌─────────────────────────┐
+          │      Backend APIs       │
+          └───────────┬─────────────┘
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+     Application   Analysis       ML
+       Service     Service      Service
 ```js
 // eslint.config.js
 import reactX from 'eslint-plugin-react-x'
