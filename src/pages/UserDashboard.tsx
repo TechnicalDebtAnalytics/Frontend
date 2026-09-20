@@ -480,7 +480,7 @@ export default function UserDashboard() {
         token = await getAccessTokenSilently();
       } catch {}
 
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const targetBranch = repo.defaultBranch || "main";
