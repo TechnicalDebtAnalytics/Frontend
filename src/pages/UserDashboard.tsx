@@ -35,6 +35,7 @@ import {
   Tag,
   FileCode,
 } from "lucide-react";
+import { API_BASE_URL } from "../config/api";
 
 interface RefactoringAction {
   type: string;
@@ -267,7 +268,7 @@ export default function UserDashboard() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const res = await fetch("http://localhost:8080/api/companies/my-admin", { headers });
+      const res = await fetch(`${API_BASE_URL}/companies/my-admin`, { headers });
       if (res.ok) {
         const data = await res.json();
         setAdminCompaniesList(data);
@@ -290,7 +291,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch("http://localhost:8080/api/invitations/my-pending", { headers });
+      const res = await fetch(`${API_BASE_URL}/invitations/my-pending`, { headers });
       if (res.ok) {
         const data = await res.json();
         setMyPendingInvitations(data);
@@ -312,7 +313,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch("http://localhost:8080/api/companies/my-member", { headers });
+      const res = await fetch(`${API_BASE_URL}/companies/my-member`, { headers });
       if (res.ok) {
         const data = await res.json();
         setMemberCompaniesList(data);
@@ -337,7 +338,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:8080/api/invitations/${invitation.invitationId}/accept`, {
+      const res = await fetch(`${API_BASE_URL}/invitations/${invitation.invitationId}/accept`, {
         method: "POST",
         headers,
       });
@@ -376,7 +377,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:8080/api/invitations/${invitation.invitationId}/reject`, {
+      const res = await fetch(`${API_BASE_URL}/invitations/${invitation.invitationId}/reject`, {
         method: "POST",
         headers,
       });
@@ -415,7 +416,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:8080/api/repositories/${repoId}/analysis`, { headers });
+      const res = await fetch(`${API_BASE_URL}/repositories/${repoId}/analysis`, { headers });
       if (res.ok) {
         const jobs = await res.json();
         if (Array.isArray(jobs) && jobs.length > 0) {
@@ -451,7 +452,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:8080/api/companies/${company.companyId}/repositories`, { headers });
+      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
       if (res.ok) {
         const data: CompanyRepoItem[] = await res.json();
         setActiveCompanyRepos(data);
@@ -484,7 +485,7 @@ export default function UserDashboard() {
 
       const targetBranch = repo.defaultBranch || "main";
       const res = await fetch(
-        `http://localhost:8080/api/repositories/${repo.repositoryId}/analysis?branch=${encodeURIComponent(targetBranch)}`,
+        `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis?branch=${encodeURIComponent(targetBranch)}`,
         {
           method: "POST",
           headers,
@@ -517,7 +518,7 @@ export default function UserDashboard() {
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          const pollRes = await fetch(`http://localhost:8080/api/repositories/${repo.repositoryId}/analysis`, { headers });
+          const pollRes = await fetch(`${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`, { headers });
           if (pollRes.ok) {
             const jobs = await pollRes.json();
             if (Array.isArray(jobs) && jobs.length > 0) {
@@ -566,7 +567,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:8080/api/analysis/${analysisId}/report`, { headers });
+      const res = await fetch(`${API_BASE_URL}/analysis/${analysisId}/report`, { headers });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || "Failed to load technical debt report");
@@ -670,7 +671,7 @@ export default function UserDashboard() {
       }
 
       // 1. Check organization info
-      const orgRes = await fetch(`http://localhost:8080/api/github/orgs/${encodeURIComponent(orgSlug)}`, { headers });
+      const orgRes = await fetch(`${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}`, { headers });
       if (!orgRes.ok) {
         const errData = await orgRes.json().catch(() => ({}));
         throw new Error(errData.message || `GitHub Organization '${orgSlug}' not found`);
@@ -679,7 +680,7 @@ export default function UserDashboard() {
 
       // 2. Validate user membership in this org
       const memberRes = await fetch(
-        `http://localhost:8080/api/github/orgs/${encodeURIComponent(orgSlug)}/validate-my-membership`,
+        `${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}/validate-my-membership`,
         { headers }
       );
 
@@ -720,7 +721,7 @@ export default function UserDashboard() {
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const res = await fetch(`http://localhost:8080/api/github/orgs/${orgName}/repos`, { headers });
+      const res = await fetch(`${API_BASE_URL}/github/orgs/${orgName}/repos`, { headers });
       if (res.ok) {
         const repos: GithubRepo[] = await res.json();
         setAvailableRepos(repos);
@@ -761,7 +762,7 @@ export default function UserDashboard() {
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const res = await fetch(
-        `http://localhost:8080/api/github/repos/${orgLogin}/${repoName}/contributors`,
+        `${API_BASE_URL}/github/repos/${orgLogin}/${repoName}/contributors`,
         { headers }
       );
 
@@ -828,7 +829,7 @@ export default function UserDashboard() {
         selectedRepositories: selectedReposPayload,
       };
 
-      const res = await fetch("http://localhost:8080/api/companies", {
+      const res = await fetch(`${API_BASE_URL}/companies`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -873,7 +874,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:8080/api/companies/${company.companyId}/available-repositories`, { headers });
+      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/available-repositories`, { headers });
       if (res.ok) {
         const data: CompanyAvailableRepo[] = await res.json();
         setAvailableForCompany(data);
@@ -926,7 +927,7 @@ export default function UserDashboard() {
           defaultBranch: r.defaultBranch || "main",
         }));
 
-      const res = await fetch(`http://localhost:8080/api/companies/${manageCompany.companyId}/repositories`, {
+      const res = await fetch(`${API_BASE_URL}/companies/${manageCompany.companyId}/repositories`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -975,7 +976,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`http://localhost:8080/api/companies/${company.companyId}/repositories`, { headers });
+      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
       if (res.ok) {
         const repos: CompanyRepoItem[] = await res.json();
         setCompanyRepos(repos);
@@ -1014,13 +1015,13 @@ export default function UserDashboard() {
 
       // 1. Fetch live contributors from GitHub
       const contribsPromise = fetch(
-        `http://localhost:8080/api/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors`,
+        `${API_BASE_URL}/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors`,
         { headers }
       );
 
       // 2. Fetch existing invitations for this repository
       const invitesPromise = fetch(
-        `http://localhost:8080/api/invitations/repository/${repo.repositoryId}`,
+        `${API_BASE_URL}/invitations/repository/${repo.repositoryId}`,
         { headers }
       );
 
@@ -1121,7 +1122,7 @@ export default function UserDashboard() {
         })),
       };
 
-      const res = await fetch("http://localhost:8080/api/invitations", {
+      const res = await fetch(`${API_BASE_URL}/invitations`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
@@ -1138,7 +1139,7 @@ export default function UserDashboard() {
 
       // Refresh invitations list
       const invitesRes = await fetch(
-        `http://localhost:8080/api/invitations/repository/${selectedRepoForInvite.repositoryId}`,
+        `${API_BASE_URL}/invitations/repository/${selectedRepoForInvite.repositoryId}`,
         { headers }
       );
       if (invitesRes.ok) {

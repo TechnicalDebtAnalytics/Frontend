@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Input from '../components/common/Input'
 import Button from '../components/common/Button'
 import Logo from '../components/common/Logo'
+import { API_BASE_URL } from '../config/api'
 
 const PRIMARY = '#4F46E5'
 const PRIMARY_HOVER = '#4338CA'
@@ -641,7 +642,7 @@ function RightPanel({
 
     try {
       const response = await fetch(
-        'http://localhost:8080/api/registration/register',
+        `${API_BASE_URL}/registration/register`,
         {
           method: 'POST',
           headers: {
@@ -710,7 +711,7 @@ function RightPanel({
 
       if (err instanceof TypeError) {
         setError(
-          'Unable to connect to the backend. Make sure Spring Boot is running on http://localhost:8080.'
+          'Unable to connect to the backend. Please check your network connection.'
         )
       } else {
         setError(
