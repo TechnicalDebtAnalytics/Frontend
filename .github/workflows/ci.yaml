@@ -19,6 +19,9 @@ permissions:
   packages: write
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Continuous Integration: Build & Test
+  # ---------------------------------------------------------------------------
   test-and-build:
     name: Test & Build
     runs-on: ubuntu-latest
@@ -39,11 +42,14 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+  # ---------------------------------------------------------------------------
+  # 2. Continuous Delivery: Build & Push Docker Image
+  # ---------------------------------------------------------------------------
   docker:
     name: Build & Push Docker Image
     needs: test-and-build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/Muditha' || github.ref == 'refs/heads/deployment')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deployment' || github.ref == 'refs/heads/develop')
 
     steps:
       - name: Checkout source code
@@ -81,3 +87,27 @@ jobs:
             VITE_AUTH0_DOMAIN=${{ secrets.VITE_AUTH0_DOMAIN || 'dev-8nsu386inyln7qfs.us.auth0.com' }}
             VITE_AUTH0_CLIENT_ID=${{ secrets.VITE_AUTH0_CLIENT_ID || 'GY6Kct43jxy3gs2EaiGBWs5LcgjY3g7s' }}
             VITE_AUTH0_AUDIENCE=${{ secrets.VITE_AUTH0_AUDIENCE || 'https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/' }}
+
+  # ---------------------------------------------------------------------------
+  # 3. Continuous Deployment: SSH to VM & Update Container
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Remote VM
+    needs: docker
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deployment')
+
+    steps:
+      - name: SSH and deploy to VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_PORT || 22 }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH || '/home/ubuntu/debtlens-deployment' }}
+            echo "${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || true
+            docker compose pull frontend
+            docker compose up -d --no-deps frontend
+            docker image prune -f
