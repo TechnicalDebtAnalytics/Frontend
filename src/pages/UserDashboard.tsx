@@ -725,9 +725,9 @@ export default function UserDashboard() {
       if (res.ok) {
         const repos: GithubRepo[] = await res.json();
         setAvailableRepos(repos);
-        // Auto-select only valid Java repositories
+        // Auto-select Java repositories and newly forked/unindexed repositories
         const javaRepoIds = repos
-          .filter((r) => r.language && r.language.toLowerCase() === "java")
+          .filter((r) => !r.language || r.language.toLowerCase() === "java")
           .map((r) => r.id);
         setSelectedRepoIds(javaRepoIds);
       }
@@ -782,10 +782,10 @@ export default function UserDashboard() {
       setSelectedRepoIds(selectedRepoIds.filter((id) => id !== repo.id));
       setOrgError("");
     } else {
-      // Validate Java repository
-      if (!repo.language || repo.language.toLowerCase() !== "java") {
+      // Validate Java repository (only block explicitly non-Java repositories)
+      if (repo.language && repo.language.toLowerCase() !== "java") {
         setOrgError(
-          `Cannot select '${repo.name}'. DebtLens currently only analyzes Java repositories (detected language: ${repo.language || "Unknown"}).`
+          `Cannot select '${repo.name}'. DebtLens currently only analyzes Java repositories (detected language: ${repo.language}).`
         );
         return;
       }
@@ -892,9 +892,10 @@ export default function UserDashboard() {
       setAddReposError("");
     } else {
       const targetRepo = availableForCompany.find((r) => r.githubRepositoryId === repoId);
-      if (!targetRepo?.language || targetRepo.language.toLowerCase() !== "java") {
+      // Validate Java repository (only block explicitly non-Java repositories)
+      if (targetRepo?.language && targetRepo.language.toLowerCase() !== "java") {
         setAddReposError(
-          `Cannot add '${repoName}'. DebtLens currently only analyzes Java repositories (detected language: ${targetRepo?.language || "Unknown"}).`
+          `Cannot add '${repoName}'. DebtLens currently only analyzes Java repositories (detected language: ${targetRepo.language}).`
         );
         return;
       }
@@ -1812,9 +1813,13 @@ export default function UserDashboard() {
                                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
                                         Java
                                       </span>
+                                    ) : !repo.language ? (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium border border-slate-200">
+                                        Java / Unindexed
+                                      </span>
                                     ) : (
                                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-200">
-                                        {repo.language || "Unknown"} (Unsupported)
+                                        {repo.language} (Unsupported)
                                       </span>
                                     )}
                                   </div>
@@ -2035,9 +2040,13 @@ export default function UserDashboard() {
                                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
                                     Java
                                   </span>
+                                ) : !repo.language ? (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium border border-slate-200">
+                                    Java / Unindexed
+                                  </span>
                                 ) : (
                                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-200">
-                                    {repo.language || "Unknown"} (Unsupported)
+                                    {repo.language} (Unsupported)
                                   </span>
                                 )}
                               </div>
