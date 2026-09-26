@@ -33,7 +33,6 @@ export default function App() {
     isAuthenticated,
     isLoading,
     getIdTokenClaims,
-    getAccessTokenSilently,
   } = useAuth0()
 
   const navigate = (target: string) => {
