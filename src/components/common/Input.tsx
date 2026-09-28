@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 type InputProps = {
   label: string
@@ -19,22 +19,21 @@ export default function Input({
   value,
   onChange,
   rightElement,
-  primaryColor = '#2563EB',
+  primaryColor = '#65D8F5',
 }: InputProps) {
+  const inputId = useId()
   const [focused, setFocused] = useState(false)
 
-  const focusRing = primaryColor === '#4F46E5'
-    ? 'rgba(79,70,229,0.12)'
-    : 'rgba(37,99,235,0.12)'
+  const focusRing = `color-mix(in srgb, ${primaryColor} 22%, transparent)`
 
   return (
-    <div>
-      <label style={{
+    <div className="dl-field">
+      <label htmlFor={inputId} style={{
         display: 'block',
         fontSize: '13px',
-        fontWeight: 500,
-        color: '#374151',
-        marginBottom: '6px',
+        fontWeight: 600,
+        color: 'var(--dl-text)',
+        marginBottom: '9px',
         letterSpacing: '0.01em',
       }}>
         {label}
@@ -50,6 +49,8 @@ export default function Input({
           {icon}
         </div>
         <input
+          id={inputId}
+          className="dl-input"
           type={type}
           placeholder={placeholder}
           value={value}
@@ -58,14 +59,14 @@ export default function Input({
           onBlur={() => setFocused(false)}
           style={{
             width: '100%',
-            height: '44px',
+            height: '50px',
             paddingLeft: '42px',
             paddingRight: rightElement ? '48px' : '14px',
-            background: '#fff',
-            border: `1.5px solid ${focused ? primaryColor : '#E5E7EB'}`,
-            borderRadius: '10px',
+            background: 'var(--dl-inset)',
+            border: `1px solid ${focused ? primaryColor : 'var(--dl-border)'}`,
+            borderRadius: '12px',
             fontSize: '14px',
-            color: '#0F172A',
+            color: 'var(--dl-text)',
             outline: 'none',
             transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
             boxShadow: focused

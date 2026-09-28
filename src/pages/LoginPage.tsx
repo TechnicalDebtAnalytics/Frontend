@@ -1,8 +1,8 @@
 import Logo from "../components/common/Logo"
 import { useAuth0 } from "@auth0/auth0-react"
 
-const PRIMARY = "#2563EB"
-const PRIMARY_HOVER = "#1D4ED8"
+const PRIMARY = "#196BDF"
+const PRIMARY_HOVER = "#2B7AE9"
 const SHADOW = "rgba(37,99,235,0.25)"
 
 
@@ -123,7 +123,7 @@ function DebtScoreWidget() {
         <div
           style={{
             marginTop: "8px",
-            color: "rgba(255,255,255,0.5)",
+            color: "rgba(255,255,255,0.65)",
             fontSize: "11px",
           }}
         >
@@ -443,7 +443,7 @@ function RepoWidget() {
 
           <div
             style={{
-              color: "rgba(255,255,255,0.5)",
+              color: "rgba(255,255,255,0.65)",
               fontSize: "11px",
               marginTop: "2px",
             }}
@@ -473,7 +473,7 @@ function RepoWidget() {
 
           <span
             style={{
-              color: "rgba(255,255,255,0.4)",
+              color: "rgba(255,255,255,0.65)",
               fontSize: "10px",
             }}
           >
@@ -490,7 +490,7 @@ function RepoWidget() {
 
 function LeftPanel() {
   return (
-    <div
+    <div className="auth-visual"
       style={{
         flex: 1,
         minHeight: "100vh",
@@ -676,7 +676,7 @@ function LeftPanel() {
 
               <div
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: "rgba(255,255,255,0.65)",
                   fontSize: "12px",
                   marginTop: "2px",
                 }}
@@ -713,14 +713,14 @@ function RightPanel({
   }
 
   return (
-    <div
+    <div className="auth-form-stage"
       style={{
         flex: 1,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "40px 32px",
-        background: "#F8FAFC",
+        background: "#0b1422",
         minHeight: "100vh",
       }}
     >
@@ -758,7 +758,7 @@ function RightPanel({
             style={{
               fontSize: "17px",
               fontWeight: 700,
-              color: "#0F172A",
+              color: "#edf4ff",
               letterSpacing: "-0.02em",
             }}
           >
@@ -772,7 +772,7 @@ function RightPanel({
             style={{
               fontSize: "26px",
               fontWeight: 700,
-              color: "#0F172A",
+              color: "#edf4ff",
               letterSpacing: "-0.02em",
               marginBottom: "8px",
             }}
@@ -783,7 +783,7 @@ function RightPanel({
           <p
             style={{
               fontSize: "14px",
-              color: "#6B7280",
+              color: "#a1b1c8",
               lineHeight: 1.6,
             }}
           >
@@ -794,9 +794,9 @@ function RightPanel({
         </div>
 
         {/* Auth0 card */}
-        <div
+        <div className="auth-card"
           style={{
-            background: "#fff",
+            background: "#111e30",
             borderRadius: "16px",
             padding: "32px",
             boxShadow:
@@ -817,7 +817,7 @@ function RightPanel({
                 height: "56px",
                 margin: "0 auto 16px",
                 borderRadius: "14px",
-                background: "#EFF6FF",
+                background: "#172e49",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -831,7 +831,7 @@ function RightPanel({
                 margin: 0,
                 fontSize: "18px",
                 fontWeight: 700,
-                color: "#0F172A",
+                color: "#edf4ff",
               }}
             >
               Sign in securely
@@ -843,7 +843,7 @@ function RightPanel({
                 marginBottom: 0,
                 fontSize: "13px",
                 lineHeight: 1.6,
-                color: "#6B7280",
+                color: "#a1b1c8",
               }}
             >
               Continue to Auth0 to securely sign in
@@ -895,7 +895,7 @@ function RightPanel({
               justifyContent: "center",
               gap: "6px",
               marginTop: "16px",
-              color: "#9CA3AF",
+              color: "#96a8c0",
               fontSize: "11px",
             }}
           >
@@ -912,7 +912,7 @@ function RightPanel({
             textAlign: "center",
             marginTop: "24px",
             fontSize: "13px",
-            color: "#9CA3AF",
+            color: "#96a8c0",
           }}
         >
           Don't have an account?{" "}
@@ -946,7 +946,7 @@ function RightPanel({
             textAlign: "center",
             marginTop: "16px",
             fontSize: "11px",
-            color: "#D1D5DB",
+            color: "#a1b1c8",
             lineHeight: 1.6,
           }}
         >
@@ -958,7 +958,7 @@ function RightPanel({
               border: "none",
               cursor: "pointer",
               fontSize: "11px",
-              color: "#9CA3AF",
+              color: "#96a8c0",
               fontFamily: "Inter, sans-serif",
               padding: 0,
             }}
@@ -973,7 +973,7 @@ function RightPanel({
               border: "none",
               cursor: "pointer",
               fontSize: "11px",
-              color: "#9CA3AF",
+              color: "#96a8c0",
               fontFamily: "Inter, sans-serif",
               padding: 0,
             }}
@@ -996,19 +996,13 @@ export default function LoginPage({
 }) {
   return (
     <div
+      className="auth-page dl-page"
       style={{
         display: "flex",
         minHeight: "100vh",
         fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
       }}
     >
-      <style>{`
-        @media (max-width: 900px) {
-          .login-left {
-            display: none !important;
-          }
-        }
-      `}</style>
 
       {/* Left side */}
       <div
@@ -1024,6 +1018,7 @@ export default function LoginPage({
 
       {/* Right side */}
       <div
+        className="auth-form-panel"
         style={{
           flex: "0 0 45%",
           minWidth: 0,

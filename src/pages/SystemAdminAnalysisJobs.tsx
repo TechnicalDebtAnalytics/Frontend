@@ -100,7 +100,7 @@ export default function SystemAdminAnalysisJobs() {
           </div>
         </div>
 
-        <div className="companies-loading">
+        <div className="companies-loading" role="status">
           <div className="loading-spinner" />
           <p>Loading platform analysis jobs...</p>
         </div>
@@ -193,7 +193,7 @@ export default function SystemAdminAnalysisJobs() {
                 borderRadius: '6rem',
                 background: statusFilter === st ? 'var(--accent-primary, #6366f1)' : 'transparent',
                 color: statusFilter === st ? '#ffffff' : 'inherit',
-                border: '1px solid var(--border-color, #334155)',
+                border: '1px solid var(--border-color, #e2e8f0)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
               }}
@@ -218,7 +218,7 @@ export default function SystemAdminAnalysisJobs() {
             <p>There are no analysis jobs matching status "{statusFilter}".</p>
           </div>
         ) : (
-          <div className="companies-table-wrapper">
+          <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Analysis jobs table">
             <table className="companies-table">
               <thead>
                 <tr>
@@ -242,7 +242,7 @@ export default function SystemAdminAnalysisJobs() {
                     </td>
 
                     <td>
-                      <span className="date-text" style={{ fontWeight: 600, color: '#f8fafc' }}>
+                      <span className="date-text" style={{ fontWeight: 600, color: 'var(--dl-text)' }}>
                         {job.companyName || '—'}
                       </span>
                     </td>

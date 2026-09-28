@@ -1157,15 +1157,15 @@ export default function UserDashboard() {
   );
 
   return (
-    <div className="min-h-screen" style={{ background: "#F4F5F7", fontFamily: "'Inter', sans-serif" }}>
+    <div className="user-dashboard min-h-screen" style={{ background: "#080f1b", fontFamily: "'Inter', sans-serif" }}>
 
       {/* ── Top Navigation ── */}
-      <header className="sticky top-0 z-40 bg-white border-b border-border" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+      <header className="sticky top-0 z-40 bg-card border-b border-border" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
         <div className="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
 
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#4361EE" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#196bdf" }}>
               <Shield size={18} className="text-white" />
             </div>
             <span className="font-bold text-foreground text-lg tracking-tight">DebtLens</span>
@@ -1187,7 +1187,7 @@ export default function UserDashboard() {
           <div className="flex items-center gap-2">
             <button className="relative p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <Bell size={18} />
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center" style={{ background: "#4361EE" }}>3</span>
+              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center" style={{ background: "#196bdf" }}>3</span>
             </button>
             <button className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <Settings size={18} />
@@ -1201,7 +1201,7 @@ export default function UserDashboard() {
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: "linear-gradient(135deg, #4361EE, #7C3AED)" }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}>
                   {user.avatar}
                 </div>
               )}
@@ -1225,7 +1225,7 @@ export default function UserDashboard() {
       <main className="max-w-7xl mx-auto px-6 py-8">
 
         {/* Page Header */}
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="dl-page-heading mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground mb-1">My Companies</h1>
             <p className="text-sm text-muted-foreground">Manage organizations you administer and teams you belong to.</p>
@@ -1233,7 +1233,7 @@ export default function UserDashboard() {
           <button
             onClick={openCreateModal}
             className="inline-flex items-center gap-2 text-sm font-semibold text-white px-4 py-2.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 w-fit"
-            style={{ background: "#4361EE" }}
+            style={{ background: "#196bdf" }}
           >
             <Building2 size={16} />
             Create Company
@@ -1245,15 +1245,15 @@ export default function UserDashboard() {
           <div
             className={`p-4 rounded-2xl border mb-6 flex items-center justify-between gap-3 animate-in fade-in duration-200 ${
               invitationActionMsg.type === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                : "bg-red-50 border-red-200 text-red-800"
+                ? "bg-emerald-500/10 border-emerald-400/25 text-emerald-300"
+                : "bg-red-500/10 border-red-400/25 text-red-300"
             }`}
           >
             <div className="flex items-center gap-2.5 text-xs font-semibold">
               {invitationActionMsg.type === "success" ? (
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                <CheckCircle2 size={16} className="text-emerald-300 shrink-0" />
               ) : (
-                <AlertCircle size={16} className="text-red-600 shrink-0" />
+                <AlertCircle size={16} className="text-red-300 shrink-0" />
               )}
               <span>{invitationActionMsg.text}</span>
             </div>
@@ -1268,10 +1268,10 @@ export default function UserDashboard() {
 
         {/* ── Pending Invitations Banner ── */}
         {myPendingInvitations.length > 0 && (
-          <div className="mb-8 p-6 rounded-3xl border border-indigo-200 bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-blue-50/90 shadow-lg shadow-indigo-100/50">
+          <div className="mb-8 p-6 rounded-3xl border border-indigo-400/25 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 shadow-lg shadow-black/10">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-600 text-white shadow-md shadow-indigo-200">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-600 text-white shadow-md shadow-black/10">
                   <Inbox size={20} />
                 </div>
                 <div>
@@ -1295,13 +1295,13 @@ export default function UserDashboard() {
                 return (
                   <div
                     key={inv.invitationId}
-                    className="p-4 rounded-2xl bg-white border border-indigo-100 shadow-sm flex flex-col justify-between gap-3"
+                    className="p-4 rounded-2xl bg-card border border-indigo-400/25 shadow-sm flex flex-col justify-between gap-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground">{inv.companyName}</span>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 font-semibold border border-indigo-400/25">
                             Repo: {inv.repositoryName}
                           </span>
                         </div>
@@ -1309,17 +1309,17 @@ export default function UserDashboard() {
                           Invited as <span className="font-semibold text-foreground">@{inv.githubUsername || inv.email}</span>
                         </p>
                         <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <Clock size={11} className="text-amber-500" />
+                          <Clock size={11} className="text-amber-300" />
                           Expires {new Date(inv.expiresAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-2 pt-2 border-t border-border">
                       <button
                         onClick={() => handleAcceptInvitation(inv)}
                         disabled={isProcessing}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all disabled:opacity-50 shadow-sm shadow-emerald-200"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all disabled:opacity-50 shadow-sm shadow-black/10"
                       >
                         {isProcessing ? (
                           <Loader2 size={13} className="animate-spin" />
@@ -1332,7 +1332,7 @@ export default function UserDashboard() {
                       <button
                         onClick={() => handleRejectInvitation(inv)}
                         disabled={isProcessing}
-                        className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-muted-foreground text-xs font-semibold transition-all disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-border bg-card hover:bg-red-500/10 hover:text-red-300 hover:border-red-400/25 text-muted-foreground text-xs font-semibold transition-all disabled:opacity-50"
                       >
                         <X size={13} />
                         Decline
@@ -1346,10 +1346,10 @@ export default function UserDashboard() {
         )}
 
         {/* ── Stats Row ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <div className="dl-stats dl-stagger grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#EEF2FF" }}>
-              <Shield size={18} style={{ color: "#4361EE" }} />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#182e46" }}>
+              <Shield size={18} style={{ color: "#65d8f5" }} />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground leading-none">{adminCompaniesList.length}</p>
@@ -1357,7 +1357,7 @@ export default function UserDashboard() {
             </div>
           </div>
           <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#D1FAE5" }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#12382e" }}>
               <Users size={18} style={{ color: "#10B981" }} />
             </div>
             <div>
@@ -1366,7 +1366,7 @@ export default function UserDashboard() {
             </div>
           </div>
           <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#F3F0FF" }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#29243f" }}>
               <GitBranch size={18} style={{ color: "#8B5CF6" }} />
             </div>
             <div>
@@ -1375,7 +1375,7 @@ export default function UserDashboard() {
             </div>
           </div>
           <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#FEF3C7" }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#392d1e" }}>
               <Activity size={18} style={{ color: "#F59E0B" }} />
             </div>
             <div>
@@ -1386,13 +1386,13 @@ export default function UserDashboard() {
         </div>
 
         {/* ── Tab Filter ── */}
-        <div className="flex items-center gap-1 mb-6 bg-card border border-border rounded-xl p-1 w-fit" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+        <div className="dl-tabs flex items-center gap-1 mb-6 bg-card border border-border rounded-xl p-1 w-fit" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
           {(["all", "admin", "member"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 capitalize"
-              style={activeTab === tab ? { background: "#4361EE", color: "#fff", boxShadow: "0 2px 8px rgba(67,97,238,0.3)" } : { color: "#6B7280" }}
+              style={activeTab === tab ? { background: "#196bdf", color: "#fff", boxShadow: "0 2px 8px rgba(67,97,238,0.3)" } : { color: "#a1b1c8" }}
             >
               {tab === "all" ? "All Companies" : tab === "admin" ? "Admin" : "Member"}
             </button>
@@ -1406,11 +1406,11 @@ export default function UserDashboard() {
               COMPANY ADMIN SECTION
           ════════════════════════════ */}
           {(activeTab === "all" || activeTab === "admin") && (
-            <section className="w-full">
+            <section className="dl-company-section dl-scroll w-full">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#EEF2FF" }}>
-                    <Crown size={15} style={{ color: "#4361EE" }} />
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#182e46" }}>
+                    <Crown size={15} style={{ color: "#65d8f5" }} />
                   </div>
                   <div>
                     <h2 className="font-semibold text-foreground text-base leading-tight">Company Admin</h2>
@@ -1420,14 +1420,14 @@ export default function UserDashboard() {
                 <button
                   onClick={openCreateModal}
                   className="flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity shadow-sm"
-                  style={{ background: "#4361EE" }}
+                  style={{ background: "#196bdf" }}
                 >
                   <Building2 size={12} />
                   New Org
                 </button>
               </div>
 
-              <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #4361EE, #7C3AED, transparent)" }} />
+              <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #196bdf, #7C3AED, transparent)" }} />
 
               {loadingCompanies ? (
                 <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
@@ -1436,8 +1436,8 @@ export default function UserDashboard() {
                 </div>
               ) : filteredAdmin.length === 0 ? (
                 <div className="bg-card rounded-2xl border border-border p-12 text-center">
-                  <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#EEF2FF" }}>
-                    <Crown size={28} style={{ color: "#4361EE" }} />
+                  <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#182e46" }}>
+                    <Crown size={28} style={{ color: "#65d8f5" }} />
                   </div>
                   <h3 className="text-base font-semibold text-foreground mb-1">No admin companies yet</h3>
                   <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
@@ -1446,20 +1446,20 @@ export default function UserDashboard() {
                   <button
                     onClick={openCreateModal}
                     className="inline-flex items-center gap-2 text-xs font-semibold text-white px-4 py-2 rounded-xl transition-all shadow"
-                    style={{ background: "#4361EE" }}
+                    style={{ background: "#196bdf" }}
                   >
                     <Building2 size={13} />
                     Register Your Organization
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {filteredAdmin.map((company) => (
                     <div
                       key={company.companyId}
                       onMouseEnter={() => setHoveredCard(company.companyId)}
                       onMouseLeave={() => setHoveredCard(null)}
-                      className="bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200"
+                      className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200"
                       style={{
                         boxShadow: hoveredCard === company.companyId ? "0 8px 30px rgba(67,97,238,0.12)" : "0 1px 4px rgba(0,0,0,0.06)",
                         transform: hoveredCard === company.companyId ? "translateY(-2px)" : "translateY(0)",
@@ -1468,7 +1468,7 @@ export default function UserDashboard() {
                       {/* Card Top */}
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#4361EE" }}>
+                          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
                             {company.companyName.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
@@ -1476,7 +1476,7 @@ export default function UserDashboard() {
                             <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
                           </div>
                         </div>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF2FF", color: "#4361EE" }}>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
                           <Crown size={10} />
                           Super Admin
                         </span>
@@ -1485,7 +1485,7 @@ export default function UserDashboard() {
                       {/* Repos count & link */}
                       <div className="bg-muted rounded-xl p-3 mb-4 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <GitBranch size={14} style={{ color: "#4361EE" }} />
+                          <GitBranch size={14} style={{ color: "#65d8f5" }} />
                           <span className="text-xs font-semibold text-foreground">{company.totalRepositories} Repositories</span>
                         </div>
                         <a
@@ -1493,7 +1493,7 @@ export default function UserDashboard() {
                           target="_blank"
                           rel="noreferrer"
                           className="text-[11px] font-medium hover:underline flex items-center gap-1"
-                          style={{ color: "#4361EE" }}
+                          style={{ color: "#65d8f5" }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           GitHub Org <ExternalLink size={10} />
@@ -1511,7 +1511,7 @@ export default function UserDashboard() {
                               e.stopPropagation();
                               openViewCompanyReposModal(company, "admin");
                             }}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors shadow-sm"
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/10 text-indigo-300 transition-colors shadow-sm"
                             title="View repositories & start analysis"
                           >
                             <Play size={10} className="fill-current" /> Analyze
@@ -1521,7 +1521,7 @@ export default function UserDashboard() {
                               e.stopPropagation();
                               openInviteModal(company);
                             }}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors shadow-sm"
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/10 text-emerald-300 transition-colors shadow-sm"
                             title="Invite repository contributors"
                           >
                             <UserPlus size={12} /> Invite
@@ -1531,7 +1531,7 @@ export default function UserDashboard() {
                               e.stopPropagation();
                               openManageModal(company);
                             }}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
                             title="Add more repos to company"
                           >
                             <Layers size={12} /> Repos
@@ -1549,10 +1549,10 @@ export default function UserDashboard() {
               COMPANY MEMBER SECTION
           ════════════════════════════ */}
           {(activeTab === "all" || activeTab === "member") && (
-            <section className="w-full">
+            <section className="dl-company-section dl-scroll w-full">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#D1FAE5" }}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#12382e" }}>
                     <Users size={15} style={{ color: "#10B981" }} />
                   </div>
                   <div>
@@ -1566,12 +1566,12 @@ export default function UserDashboard() {
 
               {loadingMemberCompanies ? (
                 <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
-                  <Loader2 className="animate-spin text-emerald-600" size={20} />
+                  <Loader2 className="animate-spin text-emerald-300" size={20} />
                   <span className="text-sm text-muted-foreground">Loading member organizations...</span>
                 </div>
               ) : filteredMember.length === 0 ? (
                 <div className="bg-card rounded-2xl border border-border p-10 text-center">
-                  <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: "#D1FAE5" }}>
+                  <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: "#12382e" }}>
                     <Users size={24} style={{ color: "#10B981" }} />
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-1">No member organizations yet</h3>
@@ -1580,16 +1580,16 @@ export default function UserDashboard() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {filteredMember.map((company) => (
                     <div
                       key={company.companyId}
                       onClick={() => openViewCompanyReposModal(company, "member")}
-                      className="bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-300"
+                      className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25"
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#10B981" }}>
+                          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
                             {company.companyName.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
@@ -1597,14 +1597,14 @@ export default function UserDashboard() {
                             <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
                           </div>
                         </div>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#D1FAE5", color: "#065F46" }}>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
                           <UserCheck size={10} />
                           Member
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between pt-3 border-t border-border">
-                        <span className="text-xs font-semibold text-emerald-700">
+                        <span className="text-xs font-semibold text-emerald-300">
                           {company.totalRepositories} Assigned Repo{company.totalRepositories !== 1 ? "s" : ""}
                         </span>
                         <button
@@ -1612,7 +1612,7 @@ export default function UserDashboard() {
                             e.stopPropagation();
                             openViewCompanyReposModal(company, "member");
                           }}
-                          className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline"
+                          className="flex items-center gap-1 text-xs font-semibold text-emerald-300 hover:underline"
                         >
                           View Repos <ChevronRight size={12} />
                         </button>
@@ -1631,15 +1631,15 @@ export default function UserDashboard() {
           CREATE COMPANY MODAL (WIZARD)
       ══════════════════════════════════════════════ */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="dl-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div
-            className="bg-white rounded-3xl border border-border w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl"
+            className="bg-card rounded-3xl border border-border w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl"
             style={{ animation: "scaleUp 0.2s ease-out" }}
           >
             {/* Modal Header */}
-            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-slate-50/80">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-muted">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#4361EE" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#196bdf" }}>
                   <Building2 size={20} className="text-white" />
                 </div>
                 <div>
@@ -1652,6 +1652,7 @@ export default function UserDashboard() {
                 </div>
               </div>
               <button
+                aria-label="Close create company"
                 onClick={closeCreateModal}
                 className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
@@ -1669,7 +1670,7 @@ export default function UserDashboard() {
 
               {/* ──── STEP 1: VERIFY ORG ──── */}
               {step === 1 && (
-                <div className="flex flex-col gap-5">
+                <div className="dl-step flex flex-col gap-5">
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-1.5">
                       GitHub Organization URL
@@ -1677,7 +1678,7 @@ export default function UserDashboard() {
                     <p className="text-xs text-muted-foreground mb-3">
                       Enter the URL of the GitHub organization you want to register (e.g. <code>https://github.com/TechnicalDebtAnalytics</code>).
                     </p>
-                    <div className="flex gap-2">
+                    <div className="dl-form-row flex gap-2">
                       <input
                         type="text"
                         placeholder="e.g. https://github.com/TechnicalDebtAnalytics"
@@ -1687,13 +1688,13 @@ export default function UserDashboard() {
                           setOrgError("");
                         }}
                         onKeyDown={(e) => e.key === "Enter" && handleVerifyOrg()}
-                        className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all"
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-400/20 transition-all"
                       />
                       <button
                         onClick={handleVerifyOrg}
                         disabled={verifyingOrg || !orgInput.trim()}
                         className="inline-flex items-center gap-2 text-sm font-semibold text-white px-5 py-2.5 rounded-xl transition-all disabled:opacity-50"
-                        style={{ background: "#4361EE" }}
+                        style={{ background: "#196bdf" }}
                       >
                         {verifyingOrg ? (
                           <>
@@ -1711,7 +1712,7 @@ export default function UserDashboard() {
                   </div>
 
                   {orgError && (
-                    <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2.5">
+                    <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-400/25 text-red-300 text-xs flex items-start gap-2.5">
                       <AlertCircle size={16} className="shrink-0 mt-0.5" />
                       <div>
                         <p className="font-semibold">Verification Failed</p>
@@ -1721,8 +1722,8 @@ export default function UserDashboard() {
                   )}
 
                   {/* Info Box */}
-                  <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-900 leading-relaxed">
-                    <p className="font-semibold mb-1 flex items-center gap-1.5 text-indigo-700">
+                  <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-400/25 text-xs text-indigo-300 leading-relaxed">
+                    <p className="font-semibold mb-1 flex items-center gap-1.5 text-indigo-300">
                       <Sparkles size={14} /> How Verification Works
                     </p>
                     Our backend will verify that the organization exists on GitHub and confirm that your registered GitHub account is an authorized member or contributor before allowing repository import.
@@ -1732,26 +1733,26 @@ export default function UserDashboard() {
 
               {/* ──── STEP 2: SELECT REPOSITORIES & CONTRIBUTORS ──── */}
               {step === 2 && verifiedOrg && (
-                <div className="flex flex-col gap-4">
+                <div className="dl-step flex flex-col gap-4">
                   {/* Verified Org Header */}
-                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/25">
                     <div className="flex items-center gap-3">
                       <img
                         src={verifiedOrg.avatar_url}
                         alt={verifiedOrg.login}
-                        className="w-10 h-10 rounded-xl object-cover border border-emerald-300"
+                        className="w-10 h-10 rounded-xl object-cover border border-emerald-400/25"
                       />
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-sm text-foreground">{verifiedOrg.name}</span>
                           <span className="text-xs text-muted-foreground">(@{verifiedOrg.login})</span>
                         </div>
-                        <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
+                        <span className="text-[11px] text-emerald-300 font-medium flex items-center gap-1 mt-0.5">
                           <Check size={12} /> {verifiedOrg.message}
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white text-emerald-800 border border-emerald-200">
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-card text-emerald-300 border border-emerald-400/25">
                       {verifiedOrg.public_repos} Repos
                     </span>
                   </div>
@@ -1792,7 +1793,7 @@ export default function UserDashboard() {
                           <div
                             key={repo.id}
                             className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                              isSelected ? "border-indigo-500 bg-indigo-50/20" : "border-border bg-card hover:border-slate-300"
+                              isSelected ? "border-indigo-500 bg-indigo-500/10" : "border-border bg-card hover:border-border"
                             }`}
                           >
                             {/* Repo Row */}
@@ -1802,17 +1803,17 @@ export default function UserDashboard() {
                                   type="checkbox"
                                   checked={isSelected}
                                   onChange={() => toggleRepoSelection(repo)}
-                                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                  className="w-4 h-4 rounded border-gray-300 text-indigo-300 focus:ring-indigo-500"
                                 />
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold text-sm text-foreground truncate">{repo.name}</span>
                                     {repo.language?.toLowerCase() === "java" ? (
-                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-semibold border border-emerald-400/25">
                                         Java
                                       </span>
                                     ) : (
-                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-200">
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-semibold border border-amber-400/25">
                                         {repo.language || "Unknown"} (Unsupported)
                                       </span>
                                     )}
@@ -1833,7 +1834,7 @@ export default function UserDashboard() {
 
               {/* ──── STEP 3: CONFIRMATION & SETUP ──── */}
               {step === 3 && verifiedOrg && (
-                <div className="flex flex-col gap-5">
+                <div className="dl-step flex flex-col gap-5">
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-1.5">
                       Company Name
@@ -1843,12 +1844,12 @@ export default function UserDashboard() {
                       value={companyNameInput}
                       onChange={(e) => setCompanyNameInput(e.target.value)}
                       placeholder="Enter company name"
-                      className="w-full px-4 py-2.5 rounded-xl border border-border text-sm outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full px-4 py-2.5 rounded-xl border border-border text-sm outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-400/20"
                     />
                   </div>
 
                   {/* Summary Card */}
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-border flex flex-col gap-3">
+                  <div className="p-4 rounded-2xl bg-muted border border-border flex flex-col gap-3">
                     <p className="text-xs font-bold text-foreground uppercase tracking-wider">Configuration Summary</p>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
@@ -1857,7 +1858,7 @@ export default function UserDashboard() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Selected Repositories:</span>
-                        <p className="font-semibold text-indigo-600 mt-0.5">{selectedRepoIds.length} Repositories</p>
+                        <p className="font-semibold text-indigo-300 mt-0.5">{selectedRepoIds.length} Repositories</p>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Super Admin:</span>
@@ -1865,20 +1866,20 @@ export default function UserDashboard() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Security Mapping:</span>
-                        <p className="font-semibold text-emerald-600 mt-0.5">Verified Contributor</p>
+                        <p className="font-semibold text-emerald-300 mt-0.5">Verified Contributor</p>
                       </div>
                     </div>
                   </div>
 
                   {creationError && (
-                    <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                    <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-400/25 text-red-300 text-xs flex items-center gap-2">
                       <AlertCircle size={16} className="shrink-0" />
                       <span>{creationError}</span>
                     </div>
                   )}
 
                   {creationSuccess && (
-                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 text-xs flex items-center gap-2">
                       <Check size={16} className="shrink-0" />
                       <span>Company created successfully! Refreshing dashboard...</span>
                     </div>
@@ -1889,13 +1890,13 @@ export default function UserDashboard() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-border bg-slate-50 flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
               {step > 1 ? (
                 <button
                   type="button"
                   onClick={() => setStep((s) => (s - 1) as any)}
                   disabled={creatingCompany || creationSuccess}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl border border-border bg-white text-muted-foreground hover:text-foreground transition-all"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground transition-all"
                 >
                   <ArrowLeft size={14} /> Back
                 </button>
@@ -1909,7 +1910,7 @@ export default function UserDashboard() {
                   onClick={() => setStep(3)}
                   disabled={selectedRepoIds.length === 0}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold px-5 py-2.5 rounded-xl text-white transition-all disabled:opacity-50"
-                  style={{ background: "#4361EE" }}
+                  style={{ background: "#196bdf" }}
                 >
                   Next: Confirm Setup <ArrowRight size={14} />
                 </button>
@@ -1921,7 +1922,7 @@ export default function UserDashboard() {
                   onClick={handleCreateCompanySubmit}
                   disabled={creatingCompany || creationSuccess || !companyNameInput.trim() || selectedRepoIds.length === 0}
                   className="inline-flex items-center gap-2 text-xs font-semibold px-6 py-2.5 rounded-xl text-white transition-all disabled:opacity-50"
-                  style={{ background: "#10B981" }}
+                  style={{ background: "#137756" }}
                 >
                   {creatingCompany ? (
                     <>
@@ -1950,12 +1951,12 @@ export default function UserDashboard() {
           MANAGE COMPANY & ADD REPOSITORIES MODAL
       ══════════════════════════════════════════════ */}
       {manageCompany && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-border w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl">
+        <div className="dl-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card rounded-3xl border border-border w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl">
             {/* Header */}
-            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-slate-50">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-muted">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#4361EE" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#196bdf" }}>
                   <Layers size={20} className="text-white" />
                 </div>
                 <div>
@@ -1964,6 +1965,7 @@ export default function UserDashboard() {
                 </div>
               </div>
               <button
+                aria-label="Close repository management"
                 onClick={() => setManageCompany(null)}
                 className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
@@ -1980,7 +1982,7 @@ export default function UserDashboard() {
                     Select additional repositories from <code>@{manageCompany.githubOrganizationName}</code> to add to this company.
                   </p>
                 </div>
-                <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                <span className="text-xs font-semibold text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-400/25">
                   {newlySelectedRepoIds.length} new selected
                 </span>
               </div>
@@ -2008,10 +2010,10 @@ export default function UserDashboard() {
                         key={repo.githubRepositoryId}
                         className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
                           isAlreadyAdded
-                            ? "border-emerald-200 bg-emerald-50/20"
+                            ? "border-emerald-400/25 bg-emerald-500/10"
                             : isNewlySelected
-                            ? "border-indigo-500 bg-indigo-50/20"
-                            : "border-border bg-card hover:border-slate-300"
+                            ? "border-indigo-500 bg-indigo-500/10"
+                            : "border-border bg-card hover:border-border"
                         }`}
                       >
                         <div className="p-3.5 flex items-center justify-between gap-3">
@@ -2021,21 +2023,21 @@ export default function UserDashboard() {
                               disabled={isAlreadyAdded}
                               checked={isAlreadyAdded || isNewlySelected}
                               onChange={() => toggleNewRepoSelection(repo.githubRepositoryId, repo.name)}
-                              className={`w-4 h-4 rounded ${isAlreadyAdded ? "text-emerald-600" : "text-indigo-600 focus:ring-indigo-500"}`}
+                              className={`w-4 h-4 rounded ${isAlreadyAdded ? "text-emerald-300" : "text-indigo-300 focus:ring-indigo-500"}`}
                             />
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-sm text-foreground truncate">{repo.name}</span>
                                 {isAlreadyAdded ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 font-semibold text-emerald-700">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 font-semibold text-emerald-300">
                                     ✓ Already Added
                                   </span>
                                 ) : repo.language?.toLowerCase() === "java" ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-semibold border border-emerald-400/25">
                                     Java
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-200">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-semibold border border-amber-400/25">
                                     {repo.language || "Unknown"} (Unsupported)
                                   </span>
                                 )}
@@ -2052,7 +2054,7 @@ export default function UserDashboard() {
                             className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shrink-0 ${
                               isInspecting
                                 ? "bg-indigo-600 text-white border-indigo-600"
-                                : "bg-white text-muted-foreground border-border hover:text-foreground"
+                                : "bg-card text-muted-foreground border-border hover:text-foreground"
                             }`}
                           >
                             <Users size={12} />
@@ -2062,12 +2064,12 @@ export default function UserDashboard() {
 
                         {/* Contributors tray */}
                         {isInspecting && (
-                          <div className="px-4 pb-3.5 pt-2 border-t border-indigo-100 bg-indigo-50/50">
-                            <p className="text-[11px] font-semibold text-indigo-900 mb-2 flex items-center gap-1">
+                          <div className="px-4 pb-3.5 pt-2 border-t border-indigo-400/25 bg-indigo-500/10">
+                            <p className="text-[11px] font-semibold text-indigo-300 mb-2 flex items-center gap-1">
                               <Users size={12} /> Live Repository Contributors:
                             </p>
                             {isLoadingContribs ? (
-                              <div className="flex items-center gap-2 text-xs text-indigo-700 py-1">
+                              <div className="flex items-center gap-2 text-xs text-indigo-300 py-1">
                                 <Loader2 size={14} className="animate-spin" />
                                 Fetching contributors list from GitHub...
                               </div>
@@ -2084,7 +2086,7 @@ export default function UserDashboard() {
                                     href={contrib.html_url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-indigo-200 text-xs text-foreground hover:shadow-sm transition-all"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card border border-indigo-400/25 text-xs text-foreground hover:shadow-sm transition-all"
                                   >
                                     <img
                                       src={contrib.avatar_url}
@@ -2092,7 +2094,7 @@ export default function UserDashboard() {
                                       className="w-4 h-4 rounded-full object-cover"
                                     />
                                     <span className="font-medium text-[11px]">@{contrib.login}</span>
-                                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-700 font-bold">
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/10 text-indigo-300 font-bold">
                                       {contrib.contributions}
                                     </span>
                                   </a>
@@ -2108,14 +2110,14 @@ export default function UserDashboard() {
               )}
 
               {addReposError && (
-                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-400/25 text-red-300 text-xs flex items-center gap-2">
                   <AlertCircle size={16} className="shrink-0" />
                   <span>{addReposError}</span>
                 </div>
               )}
 
               {addReposSuccess && (
-                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 text-xs flex items-center gap-2">
                   <Check size={16} className="shrink-0" />
                   <span>Repositories added successfully! Updating dashboard...</span>
                 </div>
@@ -2123,11 +2125,12 @@ export default function UserDashboard() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-border bg-slate-50 flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
               <button
                 type="button"
+                aria-label="Close repository management"
                 onClick={() => setManageCompany(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold border border-border bg-white text-muted-foreground hover:text-foreground"
+                className="px-4 py-2 rounded-xl text-xs font-semibold border border-border bg-card text-muted-foreground hover:text-foreground"
               >
                 Close
               </button>
@@ -2137,7 +2140,7 @@ export default function UserDashboard() {
                 onClick={handleAddRepositoriesSubmit}
                 disabled={addingRepos || addReposSuccess || newlySelectedRepoIds.length === 0}
                 className="inline-flex items-center gap-2 text-xs font-semibold px-5 py-2.5 rounded-xl text-white transition-all disabled:opacity-50"
-                style={{ background: "#4361EE" }}
+                style={{ background: "#196bdf" }}
               >
                 {addingRepos ? (
                   <>
@@ -2163,10 +2166,10 @@ export default function UserDashboard() {
           INVITE CONTRIBUTORS MODAL
       ══════════════════════════════════════════════ */}
       {inviteCompany && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-border w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] shadow-2xl">
+        <div className="dl-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card rounded-3xl border border-border w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] shadow-2xl">
             {/* Modal Header */}
-            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-slate-50">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-muted">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-600 shadow-sm">
                   <UserPlus size={20} className="text-white" />
@@ -2179,6 +2182,7 @@ export default function UserDashboard() {
                 </div>
               </div>
               <button
+                aria-label="Close invitations"
                 onClick={() => setInviteCompany(null)}
                 className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
@@ -2199,7 +2203,7 @@ export default function UserDashboard() {
                     Loading company repositories...
                   </div>
                 ) : companyRepos.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-400/25 text-xs text-amber-300">
                     No repositories found for this company. Please add repositories first via "Manage Repos".
                   </div>
                 ) : (
@@ -2213,8 +2217,8 @@ export default function UserDashboard() {
                           onClick={() => loadRepoContributorsAndInvites(inviteCompany, repo)}
                           className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 border ${
                             isSelected
-                              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200"
-                              : "bg-card text-foreground border-border hover:border-slate-300 hover:bg-slate-50"
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-black/10"
+                              : "bg-card text-foreground border-border hover:border-border hover:bg-muted"
                           }`}
                         >
                           <GitBranch size={13} />
@@ -2237,7 +2241,7 @@ export default function UserDashboard() {
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <span>GitHub Contributors ({repoContributorsList.length})</span>
                         {existingInvitations.length > 0 && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-400/25 font-medium">
                             {existingInvitations.filter(i => i.status === "PENDING").length} Pending Invite(s)
                           </span>
                         )}
@@ -2262,7 +2266,7 @@ export default function UserDashboard() {
                         <button
                           type="button"
                           onClick={handleSelectAllContributors}
-                          className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-border bg-white text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors whitespace-nowrap"
+                          className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors whitespace-nowrap"
                         >
                           {repoContributorsList.every((c) => c.login in selectedContributorsForInvite)
                             ? "Deselect All"
@@ -2274,12 +2278,12 @@ export default function UserDashboard() {
 
                   {/* Contributors List */}
                   {loadingRepoContributors ? (
-                    <div className="p-10 text-center flex flex-col items-center justify-center gap-2 bg-slate-50 rounded-2xl">
+                    <div className="p-10 text-center flex flex-col items-center justify-center gap-2 bg-muted rounded-2xl">
                       <Loader2 size={24} className="animate-spin text-primary" />
                       <span className="text-xs text-muted-foreground">Fetching contributors from GitHub repository...</span>
                     </div>
                   ) : repoContributorsList.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-border text-xs text-muted-foreground">
+                    <div className="p-8 text-center bg-muted rounded-2xl border border-border text-xs text-muted-foreground">
                       No public contributors found for this repository on GitHub.
                     </div>
                   ) : (
@@ -2298,10 +2302,10 @@ export default function UserDashboard() {
                               key={contrib.id}
                               className={`p-3.5 rounded-2xl border transition-all duration-200 ${
                                 isSelected
-                                  ? "border-emerald-400 bg-emerald-50/20 shadow-sm"
+                                  ? "border-emerald-400 bg-emerald-500/10 shadow-sm"
                                   : pendingInvite
-                                  ? "border-amber-200 bg-amber-50/30"
-                                  : "border-border bg-card hover:border-slate-300"
+                                  ? "border-amber-400/25 bg-amber-500/10"
+                                  : "border-border bg-card hover:border-border"
                               }`}
                             >
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2312,12 +2316,12 @@ export default function UserDashboard() {
                                     checked={isSelected}
                                     onChange={() => toggleInviteContributor(contrib.login)}
                                     disabled={!!pendingInvite}
-                                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="w-4 h-4 rounded text-emerald-300 focus:ring-emerald-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                   />
                                   <img
                                     src={contrib.avatar_url}
                                     alt={contrib.login}
-                                    className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
+                                    className="w-8 h-8 rounded-full object-cover border border-border shrink-0"
                                   />
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2">
@@ -2329,12 +2333,12 @@ export default function UserDashboard() {
                                       >
                                         @{contrib.login} <ExternalLink size={10} className="text-muted-foreground" />
                                       </a>
-                                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-indigo-50 text-indigo-700">
+                                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-indigo-500/10 text-indigo-300">
                                         {contrib.contributions} commits
                                       </span>
                                     </div>
                                     {pendingInvite && (
-                                      <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1 mt-0.5">
+                                      <p className="text-[11px] text-amber-300 font-medium flex items-center gap-1 mt-0.5">
                                         <Clock size={11} /> Invitation sent to <code>{pendingInvite.email}</code> (Status: Pending)
                                       </p>
                                     )}
@@ -2343,7 +2347,7 @@ export default function UserDashboard() {
 
                                 {/* Right: Email Input (if selected) or Pending Badge */}
                                 {pendingInvite ? (
-                                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1 self-start sm:self-center shrink-0">
+                                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-400/25 flex items-center gap-1 self-start sm:self-center shrink-0">
                                     <Clock size={12} /> Pending Invite
                                   </span>
                                 ) : isSelected ? (
@@ -2355,7 +2359,7 @@ export default function UserDashboard() {
                                         placeholder={`Enter ${contrib.login}'s email`}
                                         value={currentEmail}
                                         onChange={(e) => handleEmailChange(contrib.login, e.target.value)}
-                                        className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-emerald-300 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 bg-white"
+                                        className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-emerald-400/25 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-400/20 bg-card"
                                         autoFocus
                                       />
                                     </div>
@@ -2364,7 +2368,7 @@ export default function UserDashboard() {
                                   <button
                                     type="button"
                                     onClick={() => toggleInviteContributor(contrib.login)}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-border bg-white text-muted-foreground hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 transition-all flex items-center gap-1.5 self-start sm:self-center shrink-0"
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:text-emerald-300 hover:border-emerald-400/25 hover:bg-emerald-500/10 transition-all flex items-center gap-1.5 self-start sm:self-center shrink-0"
                                   >
                                     <Plus size={12} /> Select
                                   </button>
@@ -2380,25 +2384,25 @@ export default function UserDashboard() {
 
               {/* Feedback messages */}
               {inviteError && (
-                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-400/25 text-red-300 text-xs flex items-center gap-2">
                   <AlertCircle size={16} className="shrink-0" />
                   <span>{inviteError}</span>
                 </div>
               )}
 
               {inviteSuccess && (
-                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
-                  <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 text-xs flex items-center gap-2">
+                  <CheckCircle2 size={16} className="shrink-0 text-emerald-300" />
                   <span>{inviteSuccess}</span>
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-border bg-slate-50 flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 {Object.keys(selectedContributorsForInvite).length > 0 ? (
-                  <span className="font-semibold text-emerald-700">
+                  <span className="font-semibold text-emerald-300">
                     {Object.keys(selectedContributorsForInvite).length} contributor(s) selected
                   </span>
                 ) : (
@@ -2409,8 +2413,9 @@ export default function UserDashboard() {
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setInviteCompany(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold border border-border bg-white text-muted-foreground hover:text-foreground hover:bg-slate-50"
+                  aria-label="Close invitations"
+                onClick={() => setInviteCompany(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
                 >
                   Close
                 </button>
@@ -2424,7 +2429,7 @@ export default function UserDashboard() {
                     Object.keys(selectedContributorsForInvite).length === 0
                   }
                   className="inline-flex items-center gap-2 text-xs font-semibold px-5 py-2.5 rounded-xl text-white transition-all disabled:opacity-50 shadow-sm"
-                  style={{ background: "#059669" }}
+                  style={{ background: "#137756" }}
                 >
                   {sendingInvitations ? (
                     <>
@@ -2448,7 +2453,7 @@ export default function UserDashboard() {
           MODAL: COMPANY REPOSITORIES VIEWER (Assigned Repos for Members & Admins)
       ═══════════════════════════════════════════ */}
       {viewingCompanyRepos && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="dl-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-card rounded-3xl border border-border shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="p-6 border-b border-border flex items-center justify-between">
@@ -2459,7 +2464,7 @@ export default function UserDashboard() {
                     background:
                       viewingAsRole === "member"
                         ? "linear-gradient(135deg, #10B981, #059669)"
-                        : "linear-gradient(135deg, #4361EE, #7C3AED)",
+                        : "linear-gradient(135deg, #196bdf, #7C3AED)",
                   }}
                 >
                   {viewingCompanyRepos.companyName.slice(0, 2).toUpperCase()}
@@ -2472,8 +2477,8 @@ export default function UserDashboard() {
                     <span
                       className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
                       style={{
-                        background: viewingAsRole === "member" ? "#D1FAE5" : "#EEF2FF",
-                        color: viewingAsRole === "member" ? "#065F46" : "#4361EE",
+                        background: viewingAsRole === "member" ? "#12382e" : "#182e46",
+                        color: viewingAsRole === "member" ? "#7de3b2" : "#65d8f5",
                       }}
                     >
                       {viewingAsRole === "member" ? "Assigned Member" : "Super Admin"}
@@ -2488,6 +2493,7 @@ export default function UserDashboard() {
               </div>
 
               <button
+                aria-label="Close repositories"
                 onClick={() => setViewingCompanyRepos(null)}
                 className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
@@ -2499,7 +2505,7 @@ export default function UserDashboard() {
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
               {loadingActiveCompanyRepos ? (
                 <div className="p-12 text-center flex flex-col items-center justify-center gap-3">
-                  <Loader2 size={24} className="animate-spin text-emerald-600" />
+                  <Loader2 size={24} className="animate-spin text-emerald-300" />
                   <span className="text-sm text-muted-foreground">
                     Loading your accessible repositories...
                   </span>
@@ -2526,16 +2532,16 @@ export default function UserDashboard() {
                   {activeCompanyRepos.map((repo) => (
                     <div
                       key={repo.repositoryId}
-                      className="p-4 rounded-2xl border border-border bg-card hover:border-emerald-300 hover:shadow-sm transition-all flex items-center justify-between gap-4"
+                      className="p-4 rounded-2xl border border-border bg-card hover:border-emerald-400/25 hover:shadow-sm transition-all flex items-center justify-between gap-4"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                           style={{
                             background:
-                              viewingAsRole === "member" ? "#ECFDF5" : "#EEF2FF",
+                              viewingAsRole === "member" ? "#12382e" : "#182e46",
                             color:
-                              viewingAsRole === "member" ? "#10B981" : "#4361EE",
+                              viewingAsRole === "member" ? "#10B981" : "#65d8f5",
                           }}
                         >
                           <GitBranch size={18} />
@@ -2554,9 +2560,9 @@ export default function UserDashboard() {
                               className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                               style={{
                                 background:
-                                  viewingAsRole === "member" ? "#D1FAE5" : "#EEF2FF",
+                                  viewingAsRole === "member" ? "#12382e" : "#182e46",
                                 color:
-                                  viewingAsRole === "member" ? "#065F46" : "#4361EE",
+                                  viewingAsRole === "member" ? "#7de3b2" : "#65d8f5",
                               }}
                             >
                               {viewingAsRole === "member" ? "Assigned" : "Admin"}
@@ -2576,30 +2582,30 @@ export default function UserDashboard() {
                             style={{
                               background:
                                 analysisStatusMap[repo.repositoryId].status === "COMPLETED"
-                                  ? "#ECFDF5"
+                                  ? "#12382e"
                                   : analysisStatusMap[repo.repositoryId].status === "FAILED"
-                                  ? "#FEF2F2"
-                                  : "#EFF6FF",
+                                  ? "#3a202b"
+                                  : "#172e49",
                               borderColor:
                                 analysisStatusMap[repo.repositoryId].status === "COMPLETED"
-                                  ? "#A7F3D0"
+                                  ? "#366753"
                                   : analysisStatusMap[repo.repositoryId].status === "FAILED"
-                                  ? "#FECACA"
-                                  : "#BFDBFE",
+                                  ? "#704352"
+                                  : "#3c5d7f",
                               color:
                                 analysisStatusMap[repo.repositoryId].status === "COMPLETED"
-                                  ? "#059669"
+                                  ? "#7de3b2"
                                   : analysisStatusMap[repo.repositoryId].status === "FAILED"
-                                  ? "#DC2626"
-                                  : "#2563EB",
+                                  ? "#ff9ca6"
+                                  : "#79beff",
                             }}
                           >
                             {analysisStatusMap[repo.repositoryId].status === "COMPLETED" ? (
-                              <CheckCircle2 size={12} className="text-emerald-600" />
+                              <CheckCircle2 size={12} className="text-emerald-300" />
                             ) : analysisStatusMap[repo.repositoryId].status === "FAILED" ? (
-                              <AlertCircle size={12} className="text-red-600" />
+                              <AlertCircle size={12} className="text-red-300" />
                             ) : (
-                              <Loader2 size={12} className="animate-spin text-blue-600" />
+                              <Loader2 size={12} className="animate-spin text-blue-300" />
                             )}
                             <span>
                               {analysisStatusMap[repo.repositoryId].status === "COMPLETED"
@@ -2616,10 +2622,10 @@ export default function UserDashboard() {
                           <button
                             type="button"
                             onClick={() => handleOpenReport(analysisStatusMap[repo.repositoryId].analysisId!)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/10 border border-emerald-400/25 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
                             title="View Technical Debt Report & Prioritized Recommendations"
                           >
-                            <Sparkles size={12} className="text-emerald-600" />
+                            <Sparkles size={12} className="text-emerald-300" />
                             <span>View Recommendations</span>
                           </button>
                         )}
@@ -2630,7 +2636,7 @@ export default function UserDashboard() {
                           onClick={() => handleStartAnalysis(repo)}
                           disabled={analyzingRepoIds[repo.repositoryId]}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-sm transition-all hover:shadow hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-                          style={{ background: "linear-gradient(135deg, #4361EE, #7C3AED)" }}
+                          style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
                           title="Trigger code metrics & technical debt analysis"
                         >
                           {analyzingRepoIds[repo.repositoryId] ? (
@@ -2662,14 +2668,15 @@ export default function UserDashboard() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-border bg-slate-50 flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
                 Organization: @{viewingCompanyRepos.githubOrganizationName}
               </span>
               <button
                 type="button"
+                aria-label="Close repositories"
                 onClick={() => setViewingCompanyRepos(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-border text-foreground hover:bg-slate-100 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
               >
                 Close
               </button>
@@ -2682,8 +2689,8 @@ export default function UserDashboard() {
       {/* ── TECHNICAL DEBT REPORT & PRIORITIZED RECOMMENDATIONS MODAL ─────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {selectedReportAnalysisId !== null && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl border border-border overflow-hidden flex flex-col my-8 max-h-[90vh]">
+        <div className="dl-modal fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-card rounded-2xl w-full max-w-5xl shadow-2xl border border-border overflow-hidden flex flex-col my-8 max-h-[90vh]">
 
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-border flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1E1B4B, #312E81)" }}>
@@ -2702,6 +2709,7 @@ export default function UserDashboard() {
               </div>
               <button
                 type="button"
+                aria-label="Close report"
                 onClick={() => setSelectedReportAnalysisId(null)}
                 className="p-2 rounded-xl hover:bg-white/10 text-indigo-200 hover:text-white transition-colors"
               >
@@ -2715,7 +2723,7 @@ export default function UserDashboard() {
               {/* Loading State */}
               {loadingReport && (
                 <div className="py-20 flex flex-col items-center justify-center text-center">
-                  <Loader2 size={36} className="animate-spin text-indigo-600 mb-3" />
+                  <Loader2 size={36} className="animate-spin text-indigo-300 mb-3" />
                   <p className="font-semibold text-foreground text-sm">Evaluating Technical Debt & Recommendations...</p>
                   <p className="text-xs text-muted-foreground mt-1">Aggregating 28 metrics, bug probabilities, and SATD comment classifications.</p>
                 </div>
@@ -2723,7 +2731,7 @@ export default function UserDashboard() {
 
               {/* Error State */}
               {reportError && (
-                <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-400/25 text-red-300 text-xs flex items-center gap-2">
                   <AlertCircle size={16} className="shrink-0" />
                   <span>{reportError}</span>
                 </div>
@@ -2735,7 +2743,7 @@ export default function UserDashboard() {
                   {/* Top Stats Overview */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {/* Overall Debt Score */}
-                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
+                    <div className="p-4 rounded-2xl border border-border bg-muted flex flex-col justify-between">
                       <span className="text-xs text-muted-foreground font-medium">Overall Debt Score</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className="text-3xl font-extrabold text-foreground tracking-tight">
@@ -2743,14 +2751,14 @@ export default function UserDashboard() {
                         </span>
                         <span className="text-xs text-muted-foreground">/ 100</span>
                       </div>
-                      <div className="mt-2 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                      <div className="mt-2 w-full bg-border h-1.5 rounded-full overflow-hidden">
                         <div
-                          className="h-full rounded-full transition-all"
+                          className="dl-meter h-full rounded-full transition-all"
                           style={{
                             width: `${Math.min(100, activeReport.overallDebtScore)}%`,
                             background:
                               activeReport.overallDebtScore < 25
-                                ? "#10B981"
+                                ? "#137756"
                                 : activeReport.overallDebtScore < 50
                                 ? "#3B82F6"
                                 : activeReport.overallDebtScore < 75
@@ -2762,7 +2770,7 @@ export default function UserDashboard() {
                     </div>
 
                     {/* Health Score */}
-                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
+                    <div className="p-4 rounded-2xl border border-border bg-muted flex flex-col justify-between">
                       <span className="text-xs text-muted-foreground font-medium">Repository Health</span>
                       <div className="mt-2">
                         <span
@@ -2770,20 +2778,20 @@ export default function UserDashboard() {
                           style={{
                             background:
                               activeReport.overallHealthScore === "EXCELLENT"
-                                ? "#D1FAE5"
+                                ? "#12382e"
                                 : activeReport.overallHealthScore === "GOOD"
-                                ? "#DBEAFE"
+                                ? "#172e49"
                                 : activeReport.overallHealthScore === "FAIR"
-                                ? "#FEF3C7"
-                                : "#FEE2E2",
+                                ? "#392d1e"
+                                : "#3a202b",
                             color:
                               activeReport.overallHealthScore === "EXCELLENT"
-                                ? "#065F46"
+                                ? "#7de3b2"
                                 : activeReport.overallHealthScore === "GOOD"
-                                ? "#1E40AF"
+                                ? "#8ccaff"
                                 : activeReport.overallHealthScore === "FAIR"
-                                ? "#92400E"
-                                : "#991B1B",
+                                ? "#f6ce7a"
+                                : "#fca5a5",
                           }}
                         >
                           {activeReport.overallHealthScore}
@@ -2795,7 +2803,7 @@ export default function UserDashboard() {
                     </div>
 
                     {/* Classes Analyzed */}
-                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
+                    <div className="p-4 rounded-2xl border border-border bg-muted flex flex-col justify-between">
                       <span className="text-xs text-muted-foreground font-medium">Classes Analyzed</span>
                       <div className="mt-2 flex items-baseline gap-2">
                         <span className="text-3xl font-extrabold text-foreground">
@@ -2809,15 +2817,15 @@ export default function UserDashboard() {
                     </div>
 
                     {/* SATD Comments */}
-                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
+                    <div className="p-4 rounded-2xl border border-border bg-muted flex flex-col justify-between">
                       <span className="text-xs text-muted-foreground font-medium">Admitted Technical Debt</span>
                       <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-3xl font-extrabold text-amber-600">
+                        <span className="text-3xl font-extrabold text-amber-300">
                           {activeReport.totalSatdComments}
                         </span>
                         <span className="text-xs text-muted-foreground">SATD comments</span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1 text-amber-700">
+                      <span className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1 text-amber-300">
                         <Tag size={12} /> TODO/FIXME annotations
                       </span>
                     </div>
@@ -2827,7 +2835,7 @@ export default function UserDashboard() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
                     <div>
                       <h4 className="font-bold text-base text-foreground flex items-center gap-2">
-                        <TrendingUp size={18} className="text-indigo-600" />
+                        <TrendingUp size={18} className="text-indigo-300" />
                         Classes to Refactor First
                       </h4>
                       <p className="text-xs text-muted-foreground">
@@ -2836,13 +2844,13 @@ export default function UserDashboard() {
                     </div>
 
                     {/* Filter Tabs */}
-                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                    <div className="dl-report-filters flex items-center gap-1 bg-muted p-1 rounded-xl">
                       <button
                         type="button"
                         onClick={() => setSelectedClassFilter("ALL")}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                           selectedClassFilter === "ALL"
-                            ? "bg-white text-foreground shadow-sm"
+                            ? "bg-card text-foreground shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -2853,7 +2861,7 @@ export default function UserDashboard() {
                         onClick={() => setSelectedClassFilter("CRITICAL")}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                           selectedClassFilter === "CRITICAL"
-                            ? "bg-red-50 text-red-700 shadow-sm"
+                            ? "bg-red-500/10 text-red-300 shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -2870,7 +2878,7 @@ export default function UserDashboard() {
                         onClick={() => setSelectedClassFilter("HIGH")}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                           selectedClassFilter === "HIGH"
-                            ? "bg-amber-50 text-amber-700 shadow-sm"
+                            ? "bg-amber-500/10 text-amber-300 shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -2898,7 +2906,7 @@ export default function UserDashboard() {
                       .map((cls) => (
                         <div
                           key={cls.classId}
-                          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                          className="dl-report-card dl-scroll rounded-2xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                         >
                           {/* Left: Rank & Class Info */}
                           <div className="flex items-start gap-3.5 min-w-0">
@@ -2908,16 +2916,16 @@ export default function UserDashboard() {
                               style={{
                                 background:
                                   cls.refactorPriorityRank === 1
-                                    ? "#FEE2E2"
+                                    ? "#3a202b"
                                     : cls.refactorPriorityRank <= 3
-                                    ? "#FEF3C7"
-                                    : "#F1F5F9",
+                                    ? "#392d1e"
+                                    : "#1b293d",
                                 color:
                                   cls.refactorPriorityRank === 1
-                                    ? "#991B1B"
+                                    ? "#fca5a5"
                                     : cls.refactorPriorityRank <= 3
-                                    ? "#92400E"
-                                    : "#475569",
+                                    ? "#f6ce7a"
+                                    : "#b3c4d9",
                               }}
                             >
                               #{cls.refactorPriorityRank}
@@ -2928,15 +2936,15 @@ export default function UserDashboard() {
                                 <span className="font-extrabold text-base text-foreground tracking-tight">
                                   {cls.className}
                                 </span>
-                                <span className="text-xs text-muted-foreground font-medium bg-slate-100 px-2 py-0.5 rounded-md">
+                                <span className="text-xs text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-md">
                                   {cls.numberOfLinesOfCode} LOC
                                 </span>
                               </div>
 
                               {/* Highlighted File Path Location */}
                               <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 border border-indigo-200/80 text-indigo-900 text-xs font-semibold shadow-xs">
-                                  <FileCode size={13} className="text-indigo-600 shrink-0" />
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 border border-indigo-400/25 text-indigo-300 text-xs font-semibold shadow-xs">
+                                  <FileCode size={13} className="text-indigo-300 shrink-0" />
                                   <span className="font-mono tracking-tight">
                                     {cls.filePath
                                       ? cls.filePath.replace(/\\/g, "/").split(/analysis-repository-[^/]+\//)[1] ||
@@ -2944,7 +2952,7 @@ export default function UserDashboard() {
                                         cls.filePath
                                       : "source file"}
                                   </span>
-                                  <span className="text-indigo-500 font-medium text-[11px]">
+                                  <span className="text-indigo-300 font-medium text-[11px]">
                                     (lines {cls.startLine}–{cls.endLine})
                                   </span>
                                 </div>
@@ -2954,7 +2962,7 @@ export default function UserDashboard() {
                                     {cls.primaryDrivers.map((driver, dIdx) => (
                                       <span
                                         key={dIdx}
-                                        className="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium border border-slate-200"
+                                        className="text-[11px] px-2.5 py-0.5 rounded-full bg-muted text-foreground font-medium border border-border"
                                       >
                                         {driver}
                                       </span>
@@ -2968,7 +2976,7 @@ export default function UserDashboard() {
                           {/* Right: Scores & Risk Badges */}
                           <div className="flex items-center gap-3 shrink-0 flex-wrap md:justify-end">
                             {/* Bug Risk Pill */}
-                            <div className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-center min-w-[90px]">
+                            <div className="px-3 py-1.5 rounded-xl border border-border bg-muted text-center min-w-[90px]">
                               <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Bug Risk</span>
                               <span className="text-xs font-extrabold text-foreground">
                                 {cls.bugProbability != null ? `${Math.round(cls.bugProbability * 100)}%` : "0%"}
@@ -2981,16 +2989,16 @@ export default function UserDashboard() {
                               style={{
                                 background:
                                   cls.riskLevel === "CRITICAL"
-                                    ? "#FEE2E2"
+                                    ? "#3a202b"
                                     : cls.riskLevel === "HIGH"
-                                    ? "#FEF3C7"
-                                    : "#DBEAFE",
+                                    ? "#392d1e"
+                                    : "#172e49",
                                 color:
                                   cls.riskLevel === "CRITICAL"
-                                    ? "#991B1B"
+                                    ? "#fca5a5"
                                     : cls.riskLevel === "HIGH"
-                                    ? "#92400E"
-                                    : "#1E40AF",
+                                    ? "#f6ce7a"
+                                    : "#8ccaff",
                               }}
                             >
                               <span className="block text-[10px] uppercase font-bold tracking-wider opacity-80">Risk</span>
@@ -3003,12 +3011,12 @@ export default function UserDashboard() {
                               style={{
                                 background:
                                   cls.technicalDebtScore >= 75
-                                    ? "#991B1B"
+                                    ? "#922e3b"
                                     : cls.technicalDebtScore >= 50
-                                    ? "#D97706"
+                                    ? "#926017"
                                     : cls.technicalDebtScore >= 25
                                     ? "#2563EB"
-                                    : "#059669",
+                                    : "#137756",
                                 color: "#FFFFFF",
                               }}
                             >
@@ -3024,14 +3032,15 @@ export default function UserDashboard() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-border bg-slate-50 flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
                 Technical Debt Analytics Engine • Continuous Code Health
               </span>
               <button
                 type="button"
+                aria-label="Close report"
                 onClick={() => setSelectedReportAnalysisId(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-border text-foreground hover:bg-slate-100 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
               >
                 Close Report
               </button>

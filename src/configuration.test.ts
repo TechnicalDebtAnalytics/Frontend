@@ -24,7 +24,7 @@ describe('CFG-06 frontend configuration contract', () => {
     }
 
     const sourceDirectory = join(frontendRoot, 'src')
-    const applicationSource = readdirSync(sourceDirectory, { recursive: true })
+    const applicationSource = readdirSync(sourceDirectory, { recursive: true, encoding: 'utf8' })
       .filter((path) => typeof path === 'string' && path.endsWith('.tsx') && !path.endsWith('.test.tsx'))
       .map((path) => readFileSync(join(sourceDirectory, path), 'utf8'))
       .join('\n')
