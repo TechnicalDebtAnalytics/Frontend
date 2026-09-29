@@ -348,7 +348,7 @@ export default function SystemAdminCompanyDetails({
             ← Back to Companies
           </button>
         </div>
-        <div className="companies-loading">
+        <div className="companies-loading" role="status">
           <div className="loading-spinner" />
           <p>Loading company details...</p>
         </div>
@@ -553,7 +553,7 @@ export default function SystemAdminCompanyDetails({
             </div>
 
             {loadingRepos ? (
-              <div className="companies-loading" style={{ minHeight: '200px' }}>
+              <div className="companies-loading" role="status" style={{ minHeight: '200px' }}>
                 <div className="loading-spinner" />
                 <p>Loading repositories...</p>
               </div>
@@ -570,7 +570,7 @@ export default function SystemAdminCompanyDetails({
                 <p>This company does not have any connected repositories yet.</p>
               </div>
             ) : (
-              <div className="companies-table-wrapper">
+              <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Company details table">
                 <table className="companies-table">
                   <thead>
                     <tr>
@@ -636,7 +636,7 @@ export default function SystemAdminCompanyDetails({
             </div>
 
             {loadingUsers ? (
-              <div className="companies-loading" style={{ minHeight: '200px' }}>
+              <div className="companies-loading" role="status" style={{ minHeight: '200px' }}>
                 <div className="loading-spinner" />
                 <p>Loading company users...</p>
               </div>
@@ -653,7 +653,7 @@ export default function SystemAdminCompanyDetails({
                 <p>No members or super admins are currently associated with this company.</p>
               </div>
             ) : (
-              <div className="companies-table-wrapper">
+              <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Company details table">
                 <table className="companies-table">
                   <thead>
                     <tr>
@@ -729,7 +729,7 @@ export default function SystemAdminCompanyDetails({
             </div>
 
             {loadingJobs ? (
-              <div className="companies-loading" style={{ minHeight: '200px' }}>
+              <div className="companies-loading" role="status" style={{ minHeight: '200px' }}>
                 <div className="loading-spinner" />
                 <p>Loading analysis jobs...</p>
               </div>
@@ -746,7 +746,7 @@ export default function SystemAdminCompanyDetails({
                 <p>This company has not executed any analysis jobs yet.</p>
               </div>
             ) : (
-              <div className="companies-table-wrapper">
+              <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Company details table">
                 <table className="companies-table">
                   <thead>
                     <tr>

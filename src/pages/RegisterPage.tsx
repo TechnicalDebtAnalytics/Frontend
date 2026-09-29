@@ -3,8 +3,8 @@ import Input from '../components/common/Input'
 import Button from '../components/common/Button'
 import Logo from '../components/common/Logo'
 
-const PRIMARY = '#4F46E5'
-const PRIMARY_HOVER = '#4338CA'
+const PRIMARY = "#196BDF"
+const PRIMARY_HOVER = "#2B7AE9"
 const SHADOW = 'rgba(79,70,229,0.25)'
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -119,8 +119,8 @@ function CodeWidget() {
     { indent: 2, color: '#86EFAC', text: 'const', rest: ' debt = await' },
     { indent: 2, color: '#FCA5A5', text: 'ai', rest: '.detectIssues(repo)' },
     { indent: 2, color: '#86EFAC', text: 'return', rest: ' debt.score' },
-    { indent: 1, color: 'rgba(255,255,255,0.3)', text: '}', rest: '' },
-    { indent: 0, color: 'rgba(255,255,255,0.3)', text: '}', rest: '' },
+    { indent: 1, color: 'rgba(255,255,255,0.65)', text: '}', rest: '' },
+    { indent: 0, color: 'rgba(255,255,255,0.65)', text: '}', rest: '' },
   ]
 
   return (
@@ -161,7 +161,7 @@ function CodeWidget() {
 
           <span
             style={{
-              color: 'rgba(255,255,255,0.3)',
+              color: 'rgba(255,255,255,0.65)',
               fontSize: '11px',
               marginLeft: '8px',
               fontFamily: 'Inter, sans-serif',
@@ -183,7 +183,7 @@ function CodeWidget() {
           >
             <span
               style={{
-                color: 'rgba(255,255,255,0.2)',
+                color: 'rgba(255,255,255,0.65)',
                 fontSize: '11px',
                 minWidth: '16px',
                 textAlign: 'right',
@@ -336,7 +336,7 @@ function AnalyticsWidget() {
 
               <span
                 style={{
-                  color: 'rgba(255,255,255,0.4)',
+                  color: 'rgba(255,255,255,0.65)',
                   fontSize: '9px',
                 }}
               >
@@ -429,7 +429,7 @@ function LeftPanel() {
   ]
 
   return (
-    <div
+    <div className="auth-visual"
       style={{
         flex: 1,
         minHeight: '100vh',
@@ -725,14 +725,14 @@ function RightPanel({
   }
 
   return (
-    <div
+    <div className="auth-form-stage"
       style={{
         flex: 1,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '32px',
-        background: '#F8FAFC',
+        background: '#0b1422',
         minHeight: '100vh',
         overflowY: 'auto',
       }}
@@ -771,7 +771,7 @@ function RightPanel({
             style={{
               fontSize: '17px',
               fontWeight: 700,
-              color: '#0F172A',
+              color: '#edf4ff',
             }}
           >
             DebtLens
@@ -783,7 +783,7 @@ function RightPanel({
             style={{
               fontSize: '26px',
               fontWeight: 700,
-              color: '#0F172A',
+              color: '#edf4ff',
               marginBottom: '6px',
             }}
           >
@@ -793,7 +793,7 @@ function RightPanel({
           <p
             style={{
               fontSize: '14px',
-              color: '#6B7280',
+              color: '#a1b1c8',
               lineHeight: 1.6,
             }}
           >
@@ -801,9 +801,9 @@ function RightPanel({
           </p>
         </div>
 
-        <div
+        <div className="auth-card"
           style={{
-            background: '#fff',
+            background: '#111e30',
             borderRadius: '16px',
             padding: '28px 32px',
             boxShadow:
@@ -866,6 +866,7 @@ function RightPanel({
               rightElement={
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() =>
                     setShowPassword((value) => !value)
                   }
@@ -873,7 +874,7 @@ function RightPanel({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    color: '#9CA3AF',
+                    color: '#96a8c0',
                     padding: '4px',
                     display: 'flex',
                   }}
@@ -896,6 +897,7 @@ function RightPanel({
               rightElement={
                 <button
                   type="button"
+                  aria-label={showConfirm ? "Hide confirm password" : "Show confirm password"}
                   onClick={() =>
                     setShowConfirm((value) => !value)
                   }
@@ -903,7 +905,7 @@ function RightPanel({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    color: '#9CA3AF',
+                    color: '#96a8c0',
                     padding: '4px',
                     display: 'flex',
                   }}
@@ -914,7 +916,7 @@ function RightPanel({
             />
 
             {passwordMismatch && (
-              <p
+              <p className="dl-feedback" role="alert"
                 style={{
                   marginTop: '-10px',
                   fontSize: '12px',
@@ -926,13 +928,13 @@ function RightPanel({
             )}
 
             {error && (
-              <div
+              <div className="dl-feedback" role="alert"
                 style={{
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  background: '#FEF2F2',
+                  background: '#3a202b',
                   border: '1px solid #FECACA',
-                  color: '#DC2626',
+                  color: '#ff9ca6',
                   fontSize: '13px',
                 }}
               >
@@ -941,7 +943,7 @@ function RightPanel({
             )}
 
             {success && (
-              <div
+              <div className="dl-feedback" role="status"
                 style={{
                   padding: '10px 12px',
                   borderRadius: '8px',
@@ -977,7 +979,7 @@ function RightPanel({
               <span
                 style={{
                   fontSize: '13px',
-                  color: '#6B7280',
+                  color: '#a1b1c8',
                   lineHeight: 1.5,
                 }}
               >
@@ -1012,7 +1014,7 @@ function RightPanel({
             textAlign: 'center',
             marginTop: '24px',
             fontSize: '13px',
-            color: '#9CA3AF',
+            color: '#96a8c0',
           }}
         >
           Already have an account?{' '}
@@ -1044,6 +1046,7 @@ export default function RegisterPage({
 }) {
   return (
     <div
+      className="auth-page dl-page"
       style={{
         display: 'flex',
         minHeight: '100vh',
@@ -1051,34 +1054,6 @@ export default function RegisterPage({
           'Inter, ui-sans-serif, system-ui, sans-serif',
       }}
     >
-      <style>{`
-  frontend@0.0.0 build
-> tsc -b && vite build
-
-src/pages/UserDashboard.tsx:33:3 - error TS6133: 'FileText' is declared but its value is never read.
-
-33   FileText,
-     ~~~~~~~~
-
-src/pages/UserDashboard.tsx:34:3 - error TS6133: 'AlertTriangle' is declared but its value is never read.
-
-34   AlertTriangle,
-     ~~~~~~~~~~~~~
-
-src/pages/UserDashboard.tsx:38:3 - error TS6133: 'CheckCheck' is declared but its value is never read.
-
-38   CheckCheck,
-     ~~~~~~~~~~
-
-
-Found 3 errors.
-
-PS C:\Users\Muditha\Documents\GitHub\Frontend>        @media (max-width: 900px) {
-          .register-left {
-            display: none !important;
-          }
-        }
-      `}</style>
 
       <div
         className="register-left"
@@ -1092,6 +1067,7 @@ PS C:\Users\Muditha\Documents\GitHub\Frontend>        @media (max-width: 900px) 
       </div>
 
       <div
+        className="auth-form-panel"
         style={{
           flex: '0 0 45%',
           minWidth: 0,
