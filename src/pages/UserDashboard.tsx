@@ -248,6 +248,9 @@ export default function UserDashboard() {
   const [analysisRepoSearch, setAnalysisRepoSearch] = useState("");
   const [manageRepoSearch, setManageRepoSearch] = useState("");
   const [pastAnalysesCompany, setPastAnalysesCompany] = useState<CompanyAdminItem | null>(null);
+  const [pastAnalysesRole, setPastAnalysesRole] = useState<"admin" | "member">("admin");
+  const [pastAnalysesRepos, setPastAnalysesRepos] = useState<CompanyRepoItem[]>([]);
+  const [selectedPastRepoId, setSelectedPastRepoId] = useState<number | "ALL">("ALL");
   const [pastAnalysesList, setPastAnalysesList] = useState<PastAnalysisJob[]>([]);
   const [loadingPastAnalyses, setLoadingPastAnalyses] = useState<boolean>(false);
   const [pastAnalysesError, setPastAnalysesError] = useState<string>("");
@@ -470,11 +473,13 @@ export default function UserDashboard() {
   };
 
   // Open Full Page Past Analyses Workspace
-  const openPastAnalysesPage = async (company: CompanyAdminItem) => {
+  const openPastAnalysesPage = async (company: CompanyAdminItem, role: "admin" | "member" = "admin", initialRepoId?: number) => {
     setPastAnalysesCompany(company);
+    setPastAnalysesRole(role);
     setLoadingPastAnalyses(true);
     setPastAnalysesError("");
     setPastAnalysesSearch("");
+    setSelectedPastRepoId(initialRepoId ?? "ALL");
     setPastAnalysesStatusFilter("ALL");
 
     try {
@@ -486,15 +491,28 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers });
-      if (!res.ok) {
-        throw new Error("Failed to load company past analyses history");
+      const [reposRes, analysisRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
+        fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
+      ]);
+
+      if (reposRes.ok) {
+        const reposData = await reposRes.json();
+        setPastAnalysesRepos(Array.isArray(reposData) ? reposData.filter(Boolean) : []);
+      } else {
+        setPastAnalysesRepos([]);
       }
-      const data = await res.json();
-      setPastAnalysesList(Array.isArray(data) ? data.filter(Boolean) : []);
+
+      if (analysisRes.ok) {
+        const analysisData = await analysisRes.json();
+        setPastAnalysesList(Array.isArray(analysisData) ? analysisData.filter(Boolean) : []);
+      } else {
+        setPastAnalysesList([]);
+      }
     } catch (err: any) {
       console.error("Failed to load past analyses:", err);
       setPastAnalysesError(err.message || "Could not fetch past analyses.");
+      setPastAnalysesRepos([]);
       setPastAnalysesList([]);
     } finally {
       setLoadingPastAnalyses(false);
@@ -504,6 +522,8 @@ export default function UserDashboard() {
   const closePastAnalysesPage = () => {
     setPastAnalysesCompany(null);
     setPastAnalysesList([]);
+    setPastAnalysesRepos([]);
+    setSelectedPastRepoId("ALL");
     setPastAnalysesError("");
   };
 
@@ -1312,8 +1332,9 @@ export default function UserDashboard() {
                   type="button"
                   onClick={() => {
                     const comp = analysisPageCompany;
+                    const r = analysisPageRole;
                     closeAnalysisPage();
-                    if (comp) openPastAnalysesPage(comp);
+                    if (comp) openPastAnalysesPage(comp, r);
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all shadow-sm"
                   title="View previous analysis execution history and reports"
@@ -2123,9 +2144,19 @@ export default function UserDashboard() {
               </div>
 
               <div className="flex items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full"
+                  style={{
+                    background: pastAnalysesRole === "member" ? "#12382e" : "#182e46",
+                    color: pastAnalysesRole === "member" ? "#7de3b2" : "#65d8f5",
+                  }}
+                >
+                  {pastAnalysesRole === "member" ? <UserCheck size={12} /> : <Crown size={12} />}
+                  {pastAnalysesRole === "member" ? "Member Workspace" : "Super Admin"}
+                </span>
                 <button
                   type="button"
-                  onClick={() => openPastAnalysesPage(pastAnalysesCompany)}
+                  onClick={() => openPastAnalysesPage(pastAnalysesCompany, pastAnalysesRole, selectedPastRepoId === "ALL" ? undefined : selectedPastRepoId)}
                   disabled={loadingPastAnalyses}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all shadow-sm disabled:opacity-50"
                   title="Reload analysis jobs history"
@@ -2137,8 +2168,9 @@ export default function UserDashboard() {
                   type="button"
                   onClick={() => {
                     const comp = pastAnalysesCompany;
+                    const r = pastAnalysesRole;
                     closePastAnalysesPage();
-                    if (comp) openAnalysisPage(comp, "admin");
+                    if (comp) openAnalysisPage(comp, r);
                   }}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-sm transition-all hover:shadow hover:scale-105 active:scale-95"
                   style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
@@ -2195,6 +2227,168 @@ export default function UserDashboard() {
               </div>
             </div>
 
+            {/* ── Repository Selection Tabs (Repository-Wise Filter) ── */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <GitBranch size={13} className="text-amber-400" />
+                  Select Repository to View History
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {pastAnalysesRepos.length} repository{pastAnalysesRepos.length !== 1 ? "s" : ""} available
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {/* "All Repositories" Tab */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPastRepoId("ALL")}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold shrink-0 transition-all border ${
+                    selectedPastRepoId === "ALL"
+                      ? "bg-amber-500/15 border-amber-400/40 text-amber-300 shadow-sm ring-1 ring-amber-400/20"
+                      : "bg-card border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Layers size={13} />
+                  <span>All Repositories</span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      selectedPastRepoId === "ALL"
+                        ? "bg-amber-500/30 text-amber-200"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {pastAnalysesList.length}
+                  </span>
+                </button>
+
+                {/* Individual Repository Tabs */}
+                {pastAnalysesRepos.map((repo) => {
+                  const runsForRepo = pastAnalysesList.filter(
+                    (j) => j.repositoryId === repo.repositoryId || (j.repositoryName && j.repositoryName.toLowerCase() === repo.repositoryName.toLowerCase())
+                  );
+                  const isSelected = selectedPastRepoId === repo.repositoryId;
+                  const latestRun = runsForRepo[0];
+
+                  return (
+                    <button
+                      key={repo.repositoryId}
+                      type="button"
+                      onClick={() => setSelectedPastRepoId(repo.repositoryId)}
+                      className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold shrink-0 transition-all border ${
+                        isSelected
+                          ? "bg-amber-500/15 border-amber-400/40 text-amber-300 shadow-sm ring-1 ring-amber-400/20"
+                          : "bg-card border-border text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <GitBranch size={13} />
+                      <span className="truncate max-w-[160px]">{repo.repositoryName}</span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          isSelected
+                            ? "bg-amber-500/30 text-amber-200"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {runsForRepo.length}
+                      </span>
+                      {latestRun && (
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            latestRun.status === "COMPLETED"
+                              ? "bg-emerald-400 ring-2 ring-emerald-400/20"
+                              : latestRun.status === "FAILED"
+                              ? "bg-red-400 ring-2 ring-red-400/20"
+                              : "bg-blue-400 animate-ping"
+                          }`}
+                          title={`Latest run: ${latestRun.status}`}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── If a Specific Repository is Selected ── */}
+            {selectedPastRepoId !== "ALL" && (() => {
+              const currentRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
+              const repoRuns = pastAnalysesList.filter(
+                (j) => j.repositoryId === selectedPastRepoId || (currentRepo && j.repositoryName && j.repositoryName.toLowerCase() === currentRepo.repositoryName.toLowerCase())
+              );
+              const completedRepoRuns = repoRuns.filter((j) => j.status === "COMPLETED");
+
+              return (
+                <div className="p-6 rounded-3xl border border-border bg-card/60 backdrop-blur-sm space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold shrink-0">
+                        <GitBranch size={22} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-lg text-foreground">{currentRepo?.repositoryName || "Repository"}</h3>
+                          {currentRepo?.defaultBranch && (
+                            <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-medium">
+                              {currentRepo.defaultBranch}
+                            </span>
+                          )}
+                          <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-300 border border-amber-400/20">
+                            {repoRuns.length} Total Run{repoRuns.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {completedRepoRuns.length} completed evaluation{completedRepoRuns.length !== 1 ? "s" : ""} with prioritized technical debt scores.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {currentRepo && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartAnalysis(currentRepo)}
+                          disabled={analyzingRepoIds[currentRepo.repositoryId]}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                          style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
+                        >
+                          {analyzingRepoIds[currentRepo.repositoryId] ? (
+                            <>
+                              <Loader2 size={13} className="animate-spin" />
+                              <span>Queueing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play size={12} className="fill-current" />
+                              <span>Run Analysis</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                      {currentRepo?.repositoryUrl && (
+                        <a
+                          href={currentRepo.repositoryUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+                        >
+                          GitHub <ExternalLink size={12} />
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPastRepoId("ALL")}
+                        className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                      >
+                        View All Repos
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Filter and Search Bar */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="relative w-full sm:w-80">
@@ -2218,7 +2412,15 @@ export default function UserDashboard() {
                       : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
-                  All ({pastAnalysesList.length})
+                  All (
+                  {
+                    pastAnalysesList.filter((job) => {
+                      if (selectedPastRepoId === "ALL") return true;
+                      const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
+                      return job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
+                    }).length
+                  }
+                  )
                 </button>
                 <button
                   type="button"
@@ -2228,7 +2430,18 @@ export default function UserDashboard() {
                       : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
-                  Completed ({pastAnalysesList.filter((j) => j.status === "COMPLETED").length})
+                  Completed (
+                  {
+                    pastAnalysesList.filter((job) => {
+                      if (selectedPastRepoId !== "ALL") {
+                        const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
+                        const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
+                        if (!matchRepo) return false;
+                      }
+                      return job.status === "COMPLETED";
+                    }).length
+                  }
+                  )
                 </button>
                 <button
                   type="button"
@@ -2238,7 +2451,18 @@ export default function UserDashboard() {
                       : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
-                  Running ({pastAnalysesList.filter((j) => j.status === "RUNNING" || j.status === "QUEUED").length})
+                  Running (
+                  {
+                    pastAnalysesList.filter((job) => {
+                      if (selectedPastRepoId !== "ALL") {
+                        const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
+                        const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
+                        if (!matchRepo) return false;
+                      }
+                      return job.status === "RUNNING" || job.status === "QUEUED";
+                    }).length
+                  }
+                  )
                 </button>
                 <button
                   type="button"
@@ -2248,7 +2472,18 @@ export default function UserDashboard() {
                       : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
-                  Failed ({pastAnalysesList.filter((j) => j.status === "FAILED").length})
+                  Failed (
+                  {
+                    pastAnalysesList.filter((job) => {
+                      if (selectedPastRepoId !== "ALL") {
+                        const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
+                        const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
+                        if (!matchRepo) return false;
+                      }
+                      return job.status === "FAILED";
+                    }).length
+                  }
+                  )
                 </button>
               </div>
             </div>
@@ -2262,7 +2497,7 @@ export default function UserDashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => openPastAnalysesPage(pastAnalysesCompany)}
+                  onClick={() => openPastAnalysesPage(pastAnalysesCompany, pastAnalysesRole, selectedPastRepoId === "ALL" ? undefined : selectedPastRepoId)}
                   className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-semibold text-red-200 transition-colors"
                 >
                   Retry
@@ -2274,51 +2509,79 @@ export default function UserDashboard() {
             {loadingPastAnalyses ? (
               <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-3">
                 <Loader2 size={32} className="animate-spin text-amber-400" />
-                <p className="font-semibold text-sm text-foreground">Loading past analyses...</p>
+                <p className="font-semibold text-sm text-foreground">Loading repository past analyses...</p>
                 <p className="text-xs text-muted-foreground">Fetching job logs, timing metrics, and completed reports.</p>
               </div>
-            ) : pastAnalysesList.length === 0 ? (
-              <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                  <History size={28} />
-                </div>
-                <div className="max-w-md space-y-1">
-                  <h3 className="font-bold text-base text-foreground">No Analysis History Found</h3>
-                  <p className="text-xs text-muted-foreground">
-                    No code metrics analysis jobs have been executed for {pastAnalysesCompany?.companyName || "this organization"} yet.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const comp = pastAnalysesCompany;
-                    closePastAnalysesPage();
-                    if (comp) openAnalysisPage(comp, "admin");
-                  }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white shadow-md transition-all hover:scale-105 active:scale-95"
-                  style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
-                >
-                  <Play size={13} className="fill-current" />
-                  <span>Start First Analysis</span>
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pastAnalysesList
-                  .filter((job) => {
-                    if (pastAnalysesSearch) {
-                      const q = pastAnalysesSearch.toLowerCase();
-                      const matchRepo = (job.repositoryName || "").toLowerCase().includes(q);
-                      const matchBranch = (job.branch || "").toLowerCase().includes(q);
-                      const matchUser = (job.startedByUserName || "").toLowerCase().includes(q);
-                      if (!matchRepo && !matchBranch && !matchUser) return false;
-                    }
-                    if (pastAnalysesStatusFilter === "COMPLETED") return job.status === "COMPLETED";
-                    if (pastAnalysesStatusFilter === "RUNNING") return job.status === "RUNNING" || job.status === "QUEUED";
-                    if (pastAnalysesStatusFilter === "FAILED") return job.status === "FAILED";
-                    return true;
-                  })
-                  .map((job) => {
+            ) : (() => {
+              const filteredJobs = pastAnalysesList.filter((job) => {
+                // Repository filter
+                if (selectedPastRepoId !== "ALL") {
+                  const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
+                  const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
+                  if (!matchRepo) return false;
+                }
+
+                // Search query filter
+                if (pastAnalysesSearch) {
+                  const q = pastAnalysesSearch.toLowerCase();
+                  const matchRepo = (job.repositoryName || "").toLowerCase().includes(q);
+                  const matchBranch = (job.branch || "").toLowerCase().includes(q);
+                  const matchUser = (job.startedByUserName || "").toLowerCase().includes(q);
+                  if (!matchRepo && !matchBranch && !matchUser) return false;
+                }
+
+                // Status filter
+                if (pastAnalysesStatusFilter === "COMPLETED") return job.status === "COMPLETED";
+                if (pastAnalysesStatusFilter === "RUNNING") return job.status === "RUNNING" || job.status === "QUEUED";
+                if (pastAnalysesStatusFilter === "FAILED") return job.status === "FAILED";
+                return true;
+              });
+
+              if (filteredJobs.length === 0) {
+                const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
+
+                return (
+                  <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                      <History size={28} />
+                    </div>
+                    <div className="max-w-md space-y-1">
+                      <h3 className="font-bold text-base text-foreground">
+                        {selectedPastRepoId !== "ALL"
+                          ? `No Analysis History for ${selectedRepo?.repositoryName || "this repository"}`
+                          : "No Analysis History Found"}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedPastRepoId !== "ALL"
+                          ? `No past analysis jobs have been executed yet for repository ${selectedRepo?.repositoryName || ""}.`
+                          : `No code metrics analysis jobs have been executed for ${pastAnalysesCompany?.companyName || "this organization"} yet.`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedRepo) {
+                          handleStartAnalysis(selectedRepo);
+                        } else {
+                          const comp = pastAnalysesCompany;
+                          const r = pastAnalysesRole;
+                          closePastAnalysesPage();
+                          if (comp) openAnalysisPage(comp, r);
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white shadow-md transition-all hover:scale-105 active:scale-95"
+                      style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
+                    >
+                      <Play size={13} className="fill-current" />
+                      <span>{selectedRepo ? `Start Analysis on ${selectedRepo.defaultBranch || "main"}` : "Start First Analysis"}</span>
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {filteredJobs.map((job) => {
                     const isCompleted = job.status === "COMPLETED";
                     const isFailed = job.status === "FAILED";
                     const isRunning = job.status === "RUNNING" || job.status === "QUEUED";
@@ -2343,7 +2606,11 @@ export default function UserDashboard() {
 
                           <div className="min-w-0 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-base text-foreground truncate">
+                              <span
+                                onClick={() => setSelectedPastRepoId(job.repositoryId)}
+                                className="font-bold text-base text-foreground hover:text-amber-400 cursor-pointer transition-colors truncate"
+                                title="Click to filter runs for this repository"
+                              >
                                 {job.repositoryName || "Repository"}
                               </span>
                               <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-medium">
@@ -2423,8 +2690,9 @@ export default function UserDashboard() {
                       </div>
                     );
                   })}
-              </div>
-            )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           /* ════════════════════════════════════════════════════════════════
@@ -2725,7 +2993,7 @@ export default function UserDashboard() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openPastAnalysesPage(company);
+                                  openPastAnalysesPage(company, "admin");
                                 }}
                                 className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
                                 title="View past analysis history & reports"
@@ -2836,7 +3104,7 @@ export default function UserDashboard() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openPastAnalysesPage(company);
+                                  openPastAnalysesPage(company, "member");
                                 }}
                                 className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
                                 title="View past analysis history"
