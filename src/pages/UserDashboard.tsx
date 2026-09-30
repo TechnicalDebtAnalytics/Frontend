@@ -277,7 +277,7 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/my-admin`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setAdminCompaniesList(data);
+        setAdminCompaniesList(Array.isArray(data) ? data.filter(Boolean) : []);
       }
     } catch (err) {
       console.warn("Could not fetch admin companies:", err);
@@ -300,7 +300,7 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/invitations/my-pending`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setMyPendingInvitations(data);
+        setMyPendingInvitations(Array.isArray(data) ? data.filter(Boolean) : []);
       }
     } catch (err) {
       console.warn("Could not fetch my pending invitations:", err);
@@ -322,7 +322,7 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/my-member`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setMemberCompaniesList(data);
+        setMemberCompaniesList(Array.isArray(data) ? data.filter(Boolean) : []);
       }
     } catch (err) {
       console.warn("Could not fetch member companies:", err);
@@ -595,19 +595,29 @@ export default function UserDashboard() {
   }, [isLoading, isAuthenticated]);
 
   // Filtered lists
-  const filteredAdmin = adminCompaniesList.filter((c) =>
-    c.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.githubOrganizationName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAdmin = (Array.isArray(adminCompaniesList) ? adminCompaniesList : [])
+    .filter((c) => Boolean(c && typeof c === "object"))
+    .filter((c) =>
+      (c.companyName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.githubOrganizationName || "").toLowerCase().includes(searchQuery.toLowerCase())
+    );
   
-  const displayMemberCompanies = memberCompaniesList.length > 0 ? memberCompaniesList : [];
-  const filteredMember = displayMemberCompanies.filter((c) =>
-    c.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.githubOrganizationName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const displayMemberCompanies = Array.isArray(memberCompaniesList) ? memberCompaniesList : [];
+  const filteredMember = displayMemberCompanies
+    .filter((c) => Boolean(c && typeof c === "object"))
+    .filter((c) =>
+      (c.companyName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.githubOrganizationName || "").toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
-  const totalAdminRepos = adminCompaniesList.reduce((s, c) => s + (c.totalRepositories || 0), 0);
-  const totalMemberRepos = displayMemberCompanies.reduce((s, c) => s + (c.totalRepositories || 0), 0);
+  const totalAdminRepos = (Array.isArray(adminCompaniesList) ? adminCompaniesList : []).reduce(
+    (s, c) => s + (c?.totalRepositories || 0),
+    0
+  );
+  const totalMemberRepos = displayMemberCompanies.reduce(
+    (s, c) => s + (c?.totalRepositories || 0),
+    0
+  );
   const totalRepos = totalAdminRepos + totalMemberRepos;
 
   // ── Create Modal Actions ──
@@ -1550,7 +1560,7 @@ export default function UserDashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {myPendingInvitations.map((inv) => {
+                  {myPendingInvitations.filter(Boolean).map((inv) => {
                     const isProcessing = processingInvitationId === inv.invitationId;
 
                     return (
@@ -1561,17 +1571,17 @@ export default function UserDashboard() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-sm text-foreground">{inv.companyName}</span>
+                              <span className="font-bold text-sm text-foreground">{inv?.companyName || "Company"}</span>
                               <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 font-semibold border border-indigo-400/25">
-                                Repo: {inv.repositoryName}
+                                Repo: {inv?.repositoryName || ""}
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                              Invited as <span className="font-semibold text-foreground">@{inv.githubUsername || inv.email}</span>
+                              Invited as <span className="font-semibold text-foreground">@{inv?.githubUsername || inv?.email}</span>
                             </p>
                             <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
                               <Clock size={11} className="text-amber-300" />
-                              Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                              Expires {inv?.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : ""}
                             </p>
                           </div>
                         </div>
@@ -1730,11 +1740,11 @@ export default function UserDashboard() {
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
                               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
-                                {company.companyName.slice(0, 2).toUpperCase()}
+                                {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
                               </div>
                               <div>
-                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company.companyName}</h3>
-                                <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
+                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
+                                <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
                               </div>
                             </div>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
@@ -1747,10 +1757,10 @@ export default function UserDashboard() {
                           <div className="bg-muted rounded-xl p-3 mb-4 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <GitBranch size={14} style={{ color: "#65d8f5" }} />
-                              <span className="text-xs font-semibold text-foreground">{company.totalRepositories} Repositories</span>
+                              <span className="text-xs font-semibold text-foreground">{company?.totalRepositories || 0} Repositories</span>
                             </div>
                             <a
-                              href={company.githubOrganizationUrl}
+                              href={company?.githubOrganizationUrl || "#"}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[11px] font-medium hover:underline flex items-center gap-1"
@@ -1764,7 +1774,7 @@ export default function UserDashboard() {
                           {/* Footer */}
                           <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
                             <span className="text-xs text-muted-foreground truncate">
-                              Created {new Date(company.createdAt).toLocaleDateString()}
+                              Created {company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : ""}
                             </span>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button
@@ -1851,11 +1861,11 @@ export default function UserDashboard() {
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
                               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
-                                {company.companyName.slice(0, 2).toUpperCase()}
+                                {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
                               </div>
                               <div>
-                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company.companyName}</h3>
-                                <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
+                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
+                                <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
                               </div>
                             </div>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
@@ -1866,7 +1876,7 @@ export default function UserDashboard() {
 
                           <div className="flex items-center justify-between pt-3 border-t border-border">
                             <span className="text-xs font-semibold text-emerald-300">
-                              {company.totalRepositories} Assigned Repo{company.totalRepositories !== 1 ? "s" : ""}
+                              {company?.totalRepositories || 0} Assigned Repo{(company?.totalRepositories || 0) !== 1 ? "s" : ""}
                             </span>
                             <div className="flex items-center gap-2">
                               <button
@@ -2813,12 +2823,12 @@ export default function UserDashboard() {
                         : "linear-gradient(135deg, #196bdf, #7C3AED)",
                   }}
                 >
-                  {viewingCompanyRepos.companyName.slice(0, 2).toUpperCase()}
+                  {(viewingCompanyRepos?.companyName || "CO").slice(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-bold text-foreground">
-                      {viewingCompanyRepos.companyName}
+                      {viewingCompanyRepos?.companyName || "Organization"}
                     </h2>
                     <span
                       className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
