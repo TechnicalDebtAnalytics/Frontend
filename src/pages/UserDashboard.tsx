@@ -36,6 +36,11 @@ import {
   FileCode,
   History,
   RotateCw,
+  Maximize2,
+  Minimize2,
+  Radio,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 
@@ -277,6 +282,18 @@ export default function UserDashboard() {
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState("");
   const [selectedClassFilter, setSelectedClassFilter] = useState<"ALL" | "CRITICAL" | "HIGH">("ALL");
+
+  // ── WebSocket Live Analysis & Maximized Window States ──
+  const [wsConnected, setWsConnected] = useState(false);
+  const [maximizedSection, setMaximizedSection] = useState<"admin" | "member" | null>(null);
+  const [liveToast, setLiveToast] = useState<{
+    id: string;
+    type: "info" | "success" | "warning" | "error";
+    title: string;
+    message: string;
+    analysisId?: number;
+    timestamp: string;
+  } | null>(null);
 
   const user = {
     name: authUser?.name ?? authUser?.nickname ?? "User",
