@@ -36,6 +36,11 @@ import {
   FileCode,
   History,
   RotateCw,
+  Maximize2,
+  Minimize2,
+  Radio,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 
@@ -277,6 +282,18 @@ export default function UserDashboard() {
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState("");
   const [selectedClassFilter, setSelectedClassFilter] = useState<"ALL" | "CRITICAL" | "HIGH">("ALL");
+
+  // ── WebSocket Live Analysis & Maximized Window States ──
+  const [wsConnected, setWsConnected] = useState(false);
+  const [maximizedSection, setMaximizedSection] = useState<"admin" | "member" | null>(null);
+  const [liveToast, setLiveToast] = useState<{
+    id: string;
+    type: "info" | "success" | "warning" | "error";
+    title: string;
+    message: string;
+    analysisId?: number;
+    timestamp: string;
+  } | null>(null);
 
   const user = {
     name: authUser?.name ?? authUser?.nickname ?? "User",
@@ -645,6 +662,154 @@ export default function UserDashboard() {
       fetchMemberCompanies();
     }
   }, [isLoading, isAuthenticated]);
+
+  // ── WebSocket Listener for Live Analysis Progress ──
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isUnmounted = false;
+
+    const connectWebSocket = () => {
+      if (isUnmounted) return;
+      try {
+        let wsUrl: string;
+        if (API_BASE_URL.startsWith("http")) {
+          wsUrl = API_BASE_URL.replace(/^http/, "ws").replace(/\/api\/?$/, "") + "/ws/analysis";
+        } else {
+          const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+          wsUrl = `${protocol}//${window.location.host}/ws/analysis`;
+        }
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          if (!isUnmounted) {
+            setWsConnected(true);
+            console.log("[WebSocket] Connected to analysis progress feed:", wsUrl);
+          }
+        };
+
+        ws.onmessage = (event) => {
+          if (isUnmounted) return;
+          try {
+            const data = JSON.parse(event.data);
+            if (!data || !data.jobId) return;
+
+            const { jobId, repositoryId, repositoryName, branch, status, totalClasses, message } = data;
+
+            // 1. Update analysis status map
+            if (repositoryId) {
+              setAnalysisStatusMap((prev) => ({
+                ...prev,
+                [repositoryId]: {
+                  analysisId: jobId,
+                  status: status,
+                  totalClasses: totalClasses,
+                  completedAt: status === "COMPLETED" || status === "FAILED" ? new Date().toISOString() : prev[repositoryId]?.completedAt,
+                  startedAt: prev[repositoryId]?.startedAt || new Date().toISOString(),
+                },
+              }));
+
+              // 2. Update analyzing spinner state
+              if (status === "COMPLETED" || status === "FAILED") {
+                setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: false }));
+              } else if (status === "RUNNING" || status === "QUEUED") {
+                setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: true }));
+              }
+            }
+
+            // 3. Live update past analyses list if open
+            setPastAnalysesList((prev) => {
+              const existingIdx = prev.findIndex((j) => j.analysisId === jobId);
+              if (existingIdx >= 0) {
+                const updated = [...prev];
+                updated[existingIdx] = {
+                  ...updated[existingIdx],
+                  status: status,
+                  totalClassesAnalyzed: totalClasses,
+                  totalClasses: totalClasses,
+                  completedAt: status === "COMPLETED" || status === "FAILED" ? new Date().toISOString() : updated[existingIdx].completedAt,
+                };
+                return updated;
+              } else if (repositoryId) {
+                const newJob: PastAnalysisJob = {
+                  analysisId: jobId,
+                  repositoryId: repositoryId,
+                  repositoryName: repositoryName || "Repository",
+                  repositoryUrl: "",
+                  companyId: 0,
+                  companyName: "",
+                  branch: branch || "main",
+                  startedByUserId: null,
+                  startedByUserName: "You",
+                  status: status,
+                  startedAt: new Date().toISOString(),
+                  completedAt: status === "COMPLETED" || status === "FAILED" ? new Date().toISOString() : null,
+                  totalClassesAnalyzed: totalClasses,
+                  totalClasses: totalClasses,
+                };
+                return [newJob, ...prev];
+              }
+              return prev;
+            });
+
+            // 4. Trigger live toast notification
+            const toastType = status === "COMPLETED" ? "success" : status === "FAILED" ? "error" : status === "RUNNING" ? "info" : "warning";
+            const toastTitle = `Analysis #${jobId} ${status}`;
+            const toastMsg = message || `Repository '${repositoryName || repositoryId}' (${branch || "main"}) is now ${status}.`;
+            setLiveToast({
+              id: `${jobId}-${status}-${Date.now()}`,
+              type: toastType,
+              title: toastTitle,
+              message: toastMsg,
+              analysisId: jobId,
+              timestamp: new Date().toLocaleTimeString(),
+            });
+          } catch (err) {
+            console.warn("[WebSocket] Error processing message:", err);
+          }
+        };
+
+        ws.onerror = () => {
+          if (!isUnmounted) {
+            setWsConnected(false);
+          }
+        };
+
+        ws.onclose = () => {
+          if (!isUnmounted) {
+            setWsConnected(false);
+            // Auto reconnect after 3.5 seconds
+            reconnectTimeout = setTimeout(connectWebSocket, 3500);
+          }
+        };
+      } catch {
+        if (!isUnmounted) {
+          setWsConnected(false);
+          reconnectTimeout = setTimeout(connectWebSocket, 5000);
+        }
+      }
+    };
+
+    connectWebSocket();
+
+    return () => {
+      isUnmounted = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, []);
+
+  // Auto-dismiss live toast after 7 seconds
+  useEffect(() => {
+    if (!liveToast) return;
+    const t = setTimeout(() => {
+      setLiveToast(null);
+    }, 7000);
+    return () => clearTimeout(t);
+  }, [liveToast]);
 
   // Filtered lists
   const filteredAdmin = (Array.isArray(adminCompaniesList) ? adminCompaniesList : [])
@@ -1253,6 +1418,20 @@ export default function UserDashboard() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            {/* Live WebSocket Status Indicator */}
+            <div
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+                wsConnected
+                  ? "bg-emerald-500/10 border-emerald-400/25 text-emerald-300"
+                  : "bg-amber-500/10 border-amber-400/25 text-amber-300"
+              }`}
+              title={wsConnected ? "WebSocket live analysis stream active" : "Reconnecting to live analysis stream..."}
+            >
+              <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+              <Radio size={12} className={wsConnected ? "animate-pulse text-emerald-400" : "text-amber-400"} />
+              <span className="text-[11px]">{wsConnected ? "Live WS" : "Connecting..."}</span>
+            </div>
+
             <button className="relative p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <Bell size={18} />
               <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center" style={{ background: "#196bdf" }}>3</span>
