@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import { Activity, Bell, Building2, GitBranch, LayoutDashboard, Search, Settings, Shield, Users } from 'lucide-react'
 import SystemAdminCompanies from './SystemAdminCompanies'
 import type { AdminCompany } from './SystemAdminCompanies'
 import SystemAdminCompanyDetails from './SystemAdminCompanyDetails'
@@ -112,7 +113,7 @@ export default function SystemAdminDashboard() {
 
         <div className="sidebar-brand">
           <div className="brand-icon">
-            ◇
+            <Shield size={21} aria-hidden="true" />
           </div>
 
           <div>
@@ -134,41 +135,45 @@ export default function SystemAdminDashboard() {
 
           <button
             className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
+            aria-current={activePage === 'dashboard' ? 'page' : undefined}
             onClick={() => setActivePage('dashboard')}
           >
-            <span className="nav-icon">▦</span>
+            <span className="nav-icon"><LayoutDashboard size={18} aria-hidden="true" /></span>
             <span>Dashboard</span>
           </button>
 
           <button
             className={`nav-item ${activePage === 'companies' ? 'active' : ''}`}
+            aria-current={activePage === 'companies' ? 'page' : undefined}
             onClick={() => {
               setActivePage('companies')
               setSelectedCompany(null)
             }}
           >
-            <span className="nav-icon">□</span>
+            <span className="nav-icon"><Building2 size={18} aria-hidden="true" /></span>
             <span>Companies</span>
           </button>
 
           <button
             className={`nav-item ${activePage === 'users' ? 'active' : ''}`}
+            aria-current={activePage === 'users' ? 'page' : undefined}
             onClick={() => setActivePage('users')}
           >
-            <span className="nav-icon">♙</span>
+            <span className="nav-icon"><Users size={18} aria-hidden="true" /></span>
             <span>Users</span>
           </button>
 
           <button
             className={`nav-item ${activePage === 'jobs' ? 'active' : ''}`}
+            aria-current={activePage === 'jobs' ? 'page' : undefined}
             onClick={() => setActivePage('jobs')}
           >
-            <span className="nav-icon">◌</span>
+            <span className="nav-icon"><Activity size={18} aria-hidden="true" /></span>
             <span>Analysis Jobs</span>
           </button>
 
           <button className="nav-item">
-            <span className="nav-icon">⚙</span>
+            <span className="nav-icon"><Settings size={18} aria-hidden="true" /></span>
             <span>Settings</span>
           </button>
 
@@ -219,16 +224,17 @@ export default function SystemAdminDashboard() {
           <div className="header-actions">
 
             <div className="search-box">
-              <span>⌕</span>
+              <Search size={16} aria-hidden="true" />
 
               <input
                 type="text"
+                aria-label="Search platform"
                 placeholder="Search platform..."
               />
             </div>
 
-            <button className="header-button">
-              🔔
+            <button className="header-button" aria-label="Notifications">
+              <Bell size={17} aria-hidden="true" />
             </button>
 
             <div className="header-avatar">
@@ -243,7 +249,7 @@ export default function SystemAdminDashboard() {
         {/* ================= CONTENT ================= */}
         {/* ================= CONTENT AREA ================= */}
         {activePage === 'companies' ? (
-          <section className="dashboard-content">
+          <section key={activePage} className="dashboard-content">
             {selectedCompany ? (
               <SystemAdminCompanyDetails
                 companyId={selectedCompany.companyId}
@@ -257,15 +263,15 @@ export default function SystemAdminDashboard() {
             )}
           </section>
         ) : activePage === 'users' ? (
-          <section className="dashboard-content">
+          <section key={activePage} className="dashboard-content">
             <SystemAdminUsers />
           </section>
         ) : activePage === 'jobs' ? (
-          <section className="dashboard-content">
+          <section key={activePage} className="dashboard-content">
             <SystemAdminAnalysisJobs />
           </section>
         ) : (
-        <section className="dashboard-content">
+        <section key={activePage} className="dashboard-content">
 
           {/* ================= PAGE HEADING ================= */}
           <div className="page-heading">
@@ -283,7 +289,7 @@ export default function SystemAdminDashboard() {
             </div>
 
             <div className="system-status">
-              <span className={`status-dot ${health?.overallStatus === 'DEGRADED' ? 'degraded' : health?.overallStatus === 'DOWN' ? 'down' : ''}`} />
+              <span className={`status-dot ${healthLoading ? 'checking' : health?.overallStatus === 'DEGRADED' ? 'degraded' : health?.overallStatus === 'UP' ? '' : 'down'}`} />
               {healthLoading
                 ? 'Checking status...'
                 : health?.overallStatus === 'UP'
@@ -297,7 +303,7 @@ export default function SystemAdminDashboard() {
 
 
           {/* ================= STATISTICS ================= */}
-          <div className="stats-grid">
+          <div className="stats-grid dl-stagger">
 
             {/* TOTAL USERS */}
             <div className="stat-card">
@@ -305,7 +311,7 @@ export default function SystemAdminDashboard() {
               <div className="stat-card-top">
 
                 <div className="stat-icon">
-                  ♙
+                  <Users size={19} aria-hidden="true" />
                 </div>
 
                 <span className="stat-growth">
@@ -314,8 +320,8 @@ export default function SystemAdminDashboard() {
 
               </div>
 
-              <div className="stat-value">
-                {statsLoading ? '...' : stats.totalUsers}
+              <div className="stat-value" aria-busy={statsLoading}>
+                {statsLoading ? <span className="dl-skeleton" aria-label="Loading" /> : stats.totalUsers}
               </div>
 
               <div className="stat-title">
@@ -335,7 +341,7 @@ export default function SystemAdminDashboard() {
               <div className="stat-card-top">
 
                 <div className="stat-icon">
-                  ▣
+                  <Building2 size={19} aria-hidden="true" />
                 </div>
 
                 <span className="stat-growth">
@@ -344,8 +350,8 @@ export default function SystemAdminDashboard() {
 
               </div>
 
-              <div className="stat-value">
-                {statsLoading ? '...' : stats.totalCompanies}
+              <div className="stat-value" aria-busy={statsLoading}>
+                {statsLoading ? <span className="dl-skeleton" aria-label="Loading" /> : stats.totalCompanies}
               </div>
 
               <div className="stat-title">
@@ -365,7 +371,7 @@ export default function SystemAdminDashboard() {
               <div className="stat-card-top">
 
                 <div className="stat-icon">
-                  ⌘
+                  <GitBranch size={19} aria-hidden="true" />
                 </div>
 
                 <span className="stat-growth">
@@ -374,9 +380,9 @@ export default function SystemAdminDashboard() {
 
               </div>
 
-              <div className="stat-value">
+              <div className="stat-value" aria-busy={statsLoading}>
                 {statsLoading
-                  ? '...'
+                  ? <span className="dl-skeleton" aria-label="Loading" />
                   : stats.totalRepositories}
               </div>
 
@@ -397,7 +403,7 @@ export default function SystemAdminDashboard() {
               <div className="stat-card-top">
 
                 <div className="stat-icon">
-                  ◌
+                  <Activity size={19} aria-hidden="true" />
                 </div>
 
                 <span className="stat-growth">
@@ -406,9 +412,9 @@ export default function SystemAdminDashboard() {
 
               </div>
 
-              <div className="stat-value">
+              <div className="stat-value" aria-busy={statsLoading}>
                 {statsLoading
-                  ? '...'
+                  ? <span className="dl-skeleton" aria-label="Loading" />
                   : stats.totalAnalysisJobs}
               </div>
 
@@ -426,7 +432,7 @@ export default function SystemAdminDashboard() {
 
 
           {/* ================= LOWER SECTION ================= */}
-          <div className="dashboard-grid">
+          <div className="dashboard-grid dl-stagger dl-scroll">
 
 
             {/* ================= SYSTEM HEALTH ================= */}
@@ -459,7 +465,7 @@ export default function SystemAdminDashboard() {
               </div>
 
 
-              <div className="health-list">
+              <div className="health-list" aria-busy={healthLoading}>
                 {healthLoading ? (
                   <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
                     Checking service health...

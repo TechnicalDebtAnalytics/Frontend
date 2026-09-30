@@ -91,13 +91,7 @@ export default function App() {
    */
   if (isLoading || roleLoading) {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
+      <div className="dl-loading" role="status" aria-live="polite">
         Loading...
       </div>
     )

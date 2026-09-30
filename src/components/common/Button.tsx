@@ -18,8 +18,8 @@ export default function Button({
   disabled,
   loading,
   variant = 'primary',
-  primaryColor = '#2563EB',
-  primaryHover = '#1D4ED8',
+  primaryColor = '#196BDF',
+  primaryHover = '#2B7AE9',
   shadowColor = 'rgba(37,99,235,0.25)',
   fullWidth = true,
 }: ButtonProps) {
@@ -28,15 +28,16 @@ export default function Button({
   if (variant === 'secondary') {
     return (
       <button
+        className="dl-button"
         onClick={onClick}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
           width: fullWidth ? '100%' : 'auto',
-          height: '44px',
-          background: hovered ? '#F9FAFB' : '#fff',
-          color: '#374151',
-          border: `1.5px solid ${hovered ? '#D1D5DB' : '#E5E7EB'}`,
+          height: '50px',
+          background: hovered ? 'var(--dl-raised)' : 'var(--dl-surface)',
+          color: 'var(--dl-text)',
+          border: `1px solid ${hovered ? 'var(--dl-accent)' : 'var(--dl-border)'}`,
           borderRadius: '10px',
           fontSize: '14px',
           fontWeight: 600,
@@ -58,14 +59,16 @@ export default function Button({
 
   return (
     <button
+      className="dl-button"
       onClick={onClick}
+      aria-busy={loading || undefined}
       disabled={disabled || loading}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         width: fullWidth ? '100%' : 'auto',
-        height: '44px',
-        background: (disabled || loading) ? '#C7D2FE' : hovered ? primaryHover : primaryColor,
+        height: '50px',
+        background: (disabled || loading) ? '#29466C' : hovered ? primaryHover : primaryColor,
         color: '#fff',
         border: 'none',
         borderRadius: '10px',
@@ -88,9 +91,8 @@ export default function Button({
     >
       {loading ? (
         <>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+          <svg className="dl-spinner" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
-              <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
             </path>
           </svg>
           {children}

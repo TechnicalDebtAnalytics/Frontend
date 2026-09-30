@@ -94,7 +94,7 @@ export default function SystemAdminUsers() {
           </div>
         </div>
 
-        <div className="companies-loading">
+        <div className="companies-loading" role="status">
           <div className="loading-spinner" />
           <p>Loading users...</p>
         </div>
@@ -201,7 +201,7 @@ export default function SystemAdminUsers() {
           </div>
         </div>
 
-        <div className="companies-table-wrapper">
+        <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Users table">
           <table className="companies-table">
             <thead>
               <tr>

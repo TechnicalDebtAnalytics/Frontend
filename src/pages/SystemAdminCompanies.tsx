@@ -107,7 +107,7 @@ export default function SystemAdminCompanies({ onSelectCompany }: SystemAdminCom
           </div>
         </div>
 
-        <div className="companies-loading">
+        <div className="companies-loading" role="status">
           <div className="loading-spinner" />
           <p>Loading companies...</p>
         </div>
@@ -214,7 +214,7 @@ export default function SystemAdminCompanies({ onSelectCompany }: SystemAdminCom
           </div>
         </div>
 
-        <div className="companies-table-wrapper">
+        <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Companies table">
           <table className="companies-table">
             <thead>
               <tr>
@@ -232,6 +232,13 @@ export default function SystemAdminCompanies({ onSelectCompany }: SystemAdminCom
                 <tr
                   key={company.companyId}
                   className="clickable-row"
+                  tabIndex={onSelectCompany ? 0 : undefined}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onSelectCompany?.(company)
+                    }
+                  }}
                   onClick={() => onSelectCompany?.(company)}
                   title="Click to view company details"
                 >
