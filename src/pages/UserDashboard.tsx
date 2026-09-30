@@ -223,6 +223,11 @@ export default function UserDashboard() {
   const [loadingMemberCompanies, setLoadingMemberCompanies] = useState(false);
   const [invitationActionMsg, setInvitationActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // ── Full Page Analysis Workspace State ──
+  const [analysisPageCompany, setAnalysisPageCompany] = useState<CompanyAdminItem | null>(null);
+  const [analysisPageRole, setAnalysisPageRole] = useState<"admin" | "member">("admin");
+  const [analysisRepoSearch, setAnalysisRepoSearch] = useState("");
+
   // ── Company Repositories Viewer Modal State (for Members and Admins) ──
   const [viewingCompanyRepos, setViewingCompanyRepos] = useState<CompanyAdminItem | null>(null);
   const [activeCompanyRepos, setActiveCompanyRepos] = useState<CompanyRepoItem[]>([]);
@@ -403,39 +408,41 @@ export default function UserDashboard() {
     }
   };
 
-  // Fetch analysis history for a single repository
-  const fetchAnalysisForRepo = async (repoId: number, tokenParam?: string) => {
+  // Open Full Page Analysis Workspace (do NOT preload previous old jobs results)
+  const openAnalysisPage = async (company: CompanyAdminItem, role: "admin" | "member") => {
+    setAnalysisPageCompany(company);
+    setAnalysisPageRole(role);
+    setAnalysisRepoSearch("");
+    // Clear analysis status map so previous historical results are not shown
+    setAnalysisStatusMap({});
+    setLoadingActiveCompanyRepos(true);
     try {
-      let token = tokenParam;
-      if (!token) {
-        try {
-          token = await getAccessTokenSilently();
-        } catch {}
-      }
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch {}
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/repositories/${repoId}/analysis`, { headers });
+      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
       if (res.ok) {
-        const jobs = await res.json();
-        if (Array.isArray(jobs) && jobs.length > 0) {
-          const latest = jobs[0];
-          setAnalysisStatusMap((prev) => ({
-            ...prev,
-            [repoId]: {
-              analysisId: latest.analysisId,
-              status: latest.status,
-              totalClasses: latest.totalClassesAnalyzed,
-              startedAt: latest.startedAt,
-              completedAt: latest.completedAt,
-            },
-          }));
-        }
+        const data: CompanyRepoItem[] = await res.json();
+        setActiveCompanyRepos(data);
+      } else {
+        setActiveCompanyRepos([]);
       }
     } catch (err) {
-      console.warn("Could not fetch analysis history for repo:", repoId, err);
+      console.warn("Could not fetch company repositories for analysis workspace:", err);
+      setActiveCompanyRepos([]);
+    } finally {
+      setLoadingActiveCompanyRepos(false);
     }
+  };
+
+  const closeAnalysisPage = () => {
+    setAnalysisPageCompany(null);
+    setAnalysisRepoSearch("");
   };
 
   // Open Repositories Modal (for Member or Admin)
@@ -456,10 +463,6 @@ export default function UserDashboard() {
       if (res.ok) {
         const data: CompanyRepoItem[] = await res.json();
         setActiveCompanyRepos(data);
-        // Load latest analysis status for each repo
-        data.forEach((r) => {
-          fetchAnalysisForRepo(r.repositoryId, token);
-        });
       } else {
         setActiveCompanyRepos([]);
       }
@@ -1226,407 +1229,675 @@ export default function UserDashboard() {
       {/* ── Main Content ── */}
       <main className="max-w-7xl mx-auto px-6 py-8">
 
-        {/* Page Header */}
-        <div className="dl-page-heading mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground mb-1">My Companies</h1>
-            <p className="text-sm text-muted-foreground">Manage organizations you administer and teams you belong to.</p>
-          </div>
-          <button
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-white px-4 py-2.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 w-fit"
-            style={{ background: "#196bdf" }}
-          >
-            <Building2 size={16} />
-            Create Company
-          </button>
-        </div>
-
-        {/* ── Action Feedback Toast ── */}
-        {invitationActionMsg && (
-          <div
-            className={`p-4 rounded-2xl border mb-6 flex items-center justify-between gap-3 animate-in fade-in duration-200 ${
-              invitationActionMsg.type === "success"
-                ? "bg-emerald-500/10 border-emerald-400/25 text-emerald-300"
-                : "bg-red-500/10 border-red-400/25 text-red-300"
-            }`}
-          >
-            <div className="flex items-center gap-2.5 text-xs font-semibold">
-              {invitationActionMsg.type === "success" ? (
-                <CheckCircle2 size={16} className="text-emerald-300 shrink-0" />
-              ) : (
-                <AlertCircle size={16} className="text-red-300 shrink-0" />
-              )}
-              <span>{invitationActionMsg.text}</span>
-            </div>
-            <button
-              onClick={() => setInvitationActionMsg(null)}
-              className="p-1 rounded-lg hover:bg-black/5 text-muted-foreground"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* ── Pending Invitations Banner ── */}
-        {myPendingInvitations.length > 0 && (
-          <div className="mb-8 p-6 rounded-3xl border border-indigo-400/25 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 shadow-lg shadow-black/10">
-            <div className="flex items-center justify-between mb-4">
+        {analysisPageCompany ? (
+          /* ════════════════════════════════════════════════════════════════
+             FULL PAGE ANALYSIS WORKSPACE
+             ════════════════════════════════════════════════════════════════ */
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* Top Back Navigation Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-600 text-white shadow-md shadow-black/10">
-                  <Inbox size={20} />
+                <button
+                  type="button"
+                  onClick={closeAnalysisPage}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
+                >
+                  <ArrowLeft size={14} /> Back to Companies
+                </button>
+                <div className="h-5 w-px bg-border hidden sm:block" />
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Companies</span>
+                  <ChevronRight size={12} />
+                  <span className="font-semibold text-foreground">{analysisPageCompany.companyName}</span>
+                  <ChevronRight size={12} />
+                  <span className="text-indigo-400 font-medium">Code Analysis Workspace</span>
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-                    <span>Pending Invitations</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-600 text-white font-semibold">
-                      {myPendingInvitations.length}
-                    </span>
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    You have been invited to join the following repository collaborations.
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full"
+                  style={{
+                    background: analysisPageRole === "member" ? "#12382e" : "#182e46",
+                    color: analysisPageRole === "member" ? "#7de3b2" : "#65d8f5",
+                  }}
+                >
+                  {analysisPageRole === "member" ? <UserCheck size={12} /> : <Crown size={12} />}
+                  {analysisPageRole === "member" ? "Member Workspace" : "Super Admin"}
+                </span>
+                <a
+                  href={analysisPageCompany.githubOrganizationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+                >
+                  @{analysisPageCompany.githubOrganizationName} <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
+
+            {/* Analysis Workspace Hero Banner */}
+            <div className="p-6 md:p-8 rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/40 via-card to-purple-950/20 shadow-xl relative overflow-hidden">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+                <div className="space-y-2 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold">
+                    <Activity size={13} />
+                    <span>Deep Code Analytics & SATD Pipeline</span>
+                  </div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                    {analysisPageCompany.companyName} Analysis Hub
+                  </h1>
+                  <p className="text-sm text-slate-300 leading-relaxed">
+                    Select any repository below to trigger on-demand Java AST metrics analysis, Self-Admitted Technical Debt (SATD) detection, and Random Forest bug prediction. Results appear once the analysis completes.
                   </p>
+                </div>
+
+                <div className="flex items-center gap-4 shrink-0 bg-card/60 backdrop-blur-md p-4 rounded-2xl border border-border">
+                  <div className="text-center px-3 border-r border-border">
+                    <p className="text-2xl font-bold text-white">{activeCompanyRepos.length}</p>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Repositories</p>
+                  </div>
+                  <div className="text-center px-3">
+                    <p className="text-2xl font-bold text-emerald-400">
+                      {Object.values(analysisStatusMap).filter(s => s.status === "COMPLETED").length}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Completed Runs</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {myPendingInvitations.map((inv) => {
-                const isProcessing = processingInvitationId === inv.invitationId;
+            {/* Repositories Filter and Section */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Available Repositories</h2>
+                  <p className="text-xs text-muted-foreground">Select a repository to initiate code analysis</p>
+                </div>
+                <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-full sm:w-72">
+                  <Search size={14} className="text-muted-foreground shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search repositories..."
+                    value={analysisRepoSearch}
+                    onChange={(e) => setAnalysisRepoSearch(e.target.value)}
+                    className="bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none w-full"
+                  />
+                </div>
+              </div>
 
-                return (
-                  <div
-                    key={inv.invitationId}
-                    className="p-4 rounded-2xl bg-card border border-indigo-400/25 shadow-sm flex flex-col justify-between gap-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-foreground">{inv.companyName}</span>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 font-semibold border border-indigo-400/25">
-                            Repo: {inv.repositoryName}
-                          </span>
+              {/* Repos Grid */}
+              {loadingActiveCompanyRepos ? (
+                <div className="bg-card rounded-2xl border border-border p-16 text-center flex flex-col items-center justify-center gap-3">
+                  <Loader2 size={28} className="animate-spin text-indigo-400" />
+                  <span className="text-sm text-muted-foreground font-medium">Fetching repository list...</span>
+                </div>
+              ) : activeCompanyRepos.filter(r => r.repositoryName.toLowerCase().includes(analysisRepoSearch.toLowerCase())).length === 0 ? (
+                <div className="bg-card rounded-2xl border border-border p-12 text-center">
+                  <GitBranch size={32} className="mx-auto mb-3 text-muted-foreground" />
+                  <h3 className="text-base font-semibold text-foreground mb-1">No repositories found</h3>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    {analysisRepoSearch ? "No repositories match your search filter." : "No repositories have been connected to this company yet."}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {activeCompanyRepos
+                    .filter(r => r.repositoryName.toLowerCase().includes(analysisRepoSearch.toLowerCase()))
+                    .map((repo) => {
+                      const isAnalyzing = !!analyzingRepoIds[repo.repositoryId];
+                      const currentStatus = analysisStatusMap[repo.repositoryId];
+                      const isCompleted = currentStatus?.status === "COMPLETED";
+                      const isFailed = currentStatus?.status === "FAILED";
+                      const isQueuedOrRunning = isAnalyzing || (currentStatus && (currentStatus.status === "QUEUED" || currentStatus.status === "PROCESSING" || currentStatus.status === "RUNNING"));
+
+                      return (
+                        <div
+                          key={repo.repositoryId}
+                          className={`bg-card rounded-2xl border p-6 transition-all duration-200 flex flex-col justify-between gap-5 relative overflow-hidden ${
+                            isCompleted
+                              ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5 bg-gradient-to-b from-card to-emerald-950/10"
+                              : isQueuedOrRunning
+                              ? "border-indigo-500/40 shadow-lg shadow-indigo-500/5 bg-gradient-to-b from-card to-indigo-950/10"
+                              : "border-border hover:border-slate-700 shadow-sm"
+                          }`}
+                        >
+                          {/* Repo Top */}
+                          <div>
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shrink-0">
+                                  <Code2 size={20} />
+                                </div>
+                                <div className="min-w-0">
+                                  <h3 className="font-bold text-base text-foreground truncate">{repo.repositoryName}</h3>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono">
+                                      branch: {repo.defaultBranch || "main"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <a
+                                href={repo.repositoryUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                                title="View on GitHub"
+                              >
+                                <ExternalLink size={16} />
+                              </a>
+                            </div>
+
+                            {/* Dynamic State Info Area */}
+                            {isQueuedOrRunning ? (
+                              <div className="my-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 text-xs space-y-2 animate-pulse">
+                                <div className="flex items-center gap-2 font-semibold">
+                                  <Loader2 size={14} className="animate-spin text-indigo-400" />
+                                  <span>Analysis Pipeline in Progress...</span>
+                                </div>
+                                <p className="text-[11px] text-indigo-300">
+                                  Running JGit clone, JavaParser AST metric calculations, SATD comment classifiers, and Random Forest bug prediction models.
+                                </p>
+                              </div>
+                            ) : isCompleted ? (
+                              <div className="my-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-xs flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                                  <div>
+                                    <p className="font-semibold text-white">Analysis Succeeded</p>
+                                    <p className="text-[11px] text-emerald-300">
+                                      {currentStatus?.totalClasses ?? 0} classes analyzed successfully.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : isFailed ? (
+                              <div className="my-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center gap-2">
+                                <AlertCircle size={15} className="shrink-0" />
+                                <span>Analysis failed to complete. You can retry starting the job.</span>
+                              </div>
+                            ) : (
+                              <div className="my-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
+                                <Activity size={14} className="text-slate-400 shrink-0" />
+                                <span>Ready to start analysis. Click Start Analysis to begin.</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                            {isCompleted && currentStatus?.analysisId && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReport(currentStatus.analysisId!)}
+                                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/20 transition-all hover:scale-[1.02] active:scale-95"
+                              >
+                                <Sparkles size={14} />
+                                View Recommendations
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleStartAnalysis(repo)}
+                              disabled={isQueuedOrRunning}
+                              className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-sm disabled:opacity-50 ${
+                                isCompleted
+                                  ? "bg-card border border-border hover:bg-muted text-foreground"
+                                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:scale-[1.02] active:scale-95"
+                              }`}
+                            >
+                              {isQueuedOrRunning ? (
+                                <>
+                                  <Loader2 size={13} className="animate-spin" />
+                                  <span>Analyzing...</span>
+                                </>
+                              ) : isCompleted ? (
+                                <>
+                                  <Play size={12} className="fill-current" />
+                                  <span>Re-Analyze</span>
+                                </>
+                              ) : isFailed ? (
+                                <>
+                                  <Play size={12} className="fill-current" />
+                                  <span>Retry Analysis</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play size={12} className="fill-current" />
+                                  <span>Start Analysis</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Invited as <span className="font-semibold text-foreground">@{inv.githubUsername || inv.email}</span>
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <Clock size={11} className="text-amber-300" />
-                          Expires {new Date(inv.expiresAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-2 border-t border-border">
-                      <button
-                        onClick={() => handleAcceptInvitation(inv)}
-                        disabled={isProcessing}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all disabled:opacity-50 shadow-sm shadow-black/10"
-                      >
-                        {isProcessing ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : (
-                          <Check size={13} />
-                        )}
-                        Accept & Join
-                      </button>
-
-                      <button
-                        onClick={() => handleRejectInvitation(inv)}
-                        disabled={isProcessing}
-                        className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-border bg-card hover:bg-red-500/10 hover:text-red-300 hover:border-red-400/25 text-muted-foreground text-xs font-semibold transition-all disabled:opacity-50"
-                      >
-                        <X size={13} />
-                        Decline
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                      );
+                    })}
+                </div>
+              )}
             </div>
           </div>
-        )}
+        ) : (
+          /* ════════════════════════════════════════════════════════════════
+             DEFAULT MY COMPANIES DASHBOARD
+             ════════════════════════════════════════════════════════════════ */
+          <>
+            {/* Page Header */}
+            <div className="dl-page-heading mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground mb-1">My Companies</h1>
+                <p className="text-sm text-muted-foreground">Manage organizations you administer and teams you belong to.</p>
+              </div>
+              <button
+                onClick={openCreateModal}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-white px-4 py-2.5 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 w-fit"
+                style={{ background: "#196bdf" }}
+              >
+                <Building2 size={16} />
+                Create Company
+              </button>
+            </div>
 
-        {/* ── Stats Row ── */}
-        <div className="dl-stats dl-stagger grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#182e46" }}>
-              <Shield size={18} style={{ color: "#65d8f5" }} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground leading-none">{adminCompaniesList.length}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Admin Orgs</p>
-            </div>
-          </div>
-          <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#12382e" }}>
-              <Users size={18} style={{ color: "#10B981" }} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground leading-none">{memberCompaniesList.length}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Member Orgs</p>
-            </div>
-          </div>
-          <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#29243f" }}>
-              <GitBranch size={18} style={{ color: "#8B5CF6" }} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground leading-none">{totalRepos}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Total Repos</p>
-            </div>
-          </div>
-          <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#392d1e" }}>
-              <Activity size={18} style={{ color: "#F59E0B" }} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground leading-none">{adminCompaniesList.length + memberCompaniesList.length}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Active Orgs</p>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Tab Filter ── */}
-        <div className="dl-tabs flex items-center gap-1 mb-6 bg-card border border-border rounded-xl p-1 w-fit" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-          {(["all", "admin", "member"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 capitalize"
-              style={activeTab === tab ? { background: "#196bdf", color: "#fff", boxShadow: "0 2px 8px rgba(67,97,238,0.3)" } : { color: "#a1b1c8" }}
-            >
-              {tab === "all" ? "All Companies" : tab === "admin" ? "Admin" : "Member"}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Two Column Sections ── */}
-        <div className="flex flex-col gap-10">
-
-          {/* ════════════════════════════
-              COMPANY ADMIN SECTION
-          ════════════════════════════ */}
-          {(activeTab === "all" || activeTab === "admin") && (
-            <section className="dl-company-section dl-scroll w-full">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#182e46" }}>
-                    <Crown size={15} style={{ color: "#65d8f5" }} />
-                  </div>
-                  <div>
-                    <h2 className="font-semibold text-foreground text-base leading-tight">Company Admin</h2>
-                    <p className="text-xs text-muted-foreground">{filteredAdmin.length} organization{filteredAdmin.length !== 1 ? "s" : ""} you manage as Super Admin</p>
-                  </div>
+            {/* ── Action Feedback Toast ── */}
+            {invitationActionMsg && (
+              <div
+                className={`p-4 rounded-2xl border mb-6 flex items-center justify-between gap-3 animate-in fade-in duration-200 ${
+                  invitationActionMsg.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-400/25 text-emerald-300"
+                    : "bg-red-500/10 border-red-400/25 text-red-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 text-xs font-semibold">
+                  {invitationActionMsg.type === "success" ? (
+                    <CheckCircle2 size={16} className="text-emerald-300 shrink-0" />
+                  ) : (
+                    <AlertCircle size={16} className="text-red-300 shrink-0" />
+                  )}
+                  <span>{invitationActionMsg.text}</span>
                 </div>
                 <button
-                  onClick={openCreateModal}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity shadow-sm"
-                  style={{ background: "#196bdf" }}
+                  onClick={() => setInvitationActionMsg(null)}
+                  className="p-1 rounded-lg hover:bg-black/5 text-muted-foreground"
                 >
-                  <Building2 size={12} />
-                  New Org
+                  <X size={14} />
                 </button>
               </div>
+            )}
 
-              <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #196bdf, #7C3AED, transparent)" }} />
-
-              {loadingCompanies ? (
-                <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
-                  <Loader2 className="animate-spin text-primary" size={20} />
-                  <span className="text-sm text-muted-foreground">Loading your companies...</span>
-                </div>
-              ) : filteredAdmin.length === 0 ? (
-                <div className="bg-card rounded-2xl border border-border p-12 text-center">
-                  <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#182e46" }}>
-                    <Crown size={28} style={{ color: "#65d8f5" }} />
-                  </div>
-                  <h3 className="text-base font-semibold text-foreground mb-1">No admin companies yet</h3>
-                  <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
-                    Verify your GitHub organization to import repositories and create your first company.
-                  </p>
-                  <button
-                    onClick={openCreateModal}
-                    className="inline-flex items-center gap-2 text-xs font-semibold text-white px-4 py-2 rounded-xl transition-all shadow"
-                    style={{ background: "#196bdf" }}
-                  >
-                    <Building2 size={13} />
-                    Register Your Organization
-                  </button>
-                </div>
-              ) : (
-                <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredAdmin.map((company) => (
-                    <div
-                      key={company.companyId}
-                      onMouseEnter={() => setHoveredCard(company.companyId)}
-                      onMouseLeave={() => setHoveredCard(null)}
-                      className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200"
-                      style={{
-                        boxShadow: hoveredCard === company.companyId ? "0 8px 30px rgba(67,97,238,0.12)" : "0 1px 4px rgba(0,0,0,0.06)",
-                        transform: hoveredCard === company.companyId ? "translateY(-2px)" : "translateY(0)",
-                      }}
-                    >
-                      {/* Card Top */}
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
-                            {company.companyName.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-foreground text-sm leading-tight">{company.companyName}</h3>
-                            <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
-                          <Crown size={10} />
-                          Super Admin
-                        </span>
-                      </div>
-
-                      {/* Repos count & link */}
-                      <div className="bg-muted rounded-xl p-3 mb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <GitBranch size={14} style={{ color: "#65d8f5" }} />
-                          <span className="text-xs font-semibold text-foreground">{company.totalRepositories} Repositories</span>
-                        </div>
-                        <a
-                          href={company.githubOrganizationUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] font-medium hover:underline flex items-center gap-1"
-                          style={{ color: "#65d8f5" }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          GitHub Org <ExternalLink size={10} />
-                        </a>
-                      </div>
-
-                      {/* Footer */}
-                      <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
-                        <span className="text-xs text-muted-foreground truncate">
-                          Created {new Date(company.createdAt).toLocaleDateString()}
-                        </span>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openViewCompanyReposModal(company, "admin");
-                            }}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/10 text-indigo-300 transition-colors shadow-sm"
-                            title="View repositories & start analysis"
-                          >
-                            <Play size={10} className="fill-current" /> Analyze
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openInviteModal(company);
-                            }}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/10 text-emerald-300 transition-colors shadow-sm"
-                            title="Invite repository contributors"
-                          >
-                            <UserPlus size={12} /> Invite
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openManageModal(company);
-                            }}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
-                            title="Add more repos to company"
-                          >
-                            <Layers size={12} /> Repos
-                          </button>
-                        </div>
-                      </div>
+            {/* ── Pending Invitations Banner ── */}
+            {myPendingInvitations.length > 0 && (
+              <div className="mb-8 p-6 rounded-3xl border border-indigo-400/25 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 shadow-lg shadow-black/10">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-600 text-white shadow-md shadow-black/10">
+                      <Inbox size={20} />
                     </div>
-                  ))}
+                    <div>
+                      <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                        <span>Pending Invitations</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-600 text-white font-semibold">
+                          {myPendingInvitations.length}
+                        </span>
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        You have been invited to join the following repository collaborations.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </section>
-          )}
 
-          {/* ════════════════════════════
-              COMPANY MEMBER SECTION
-          ════════════════════════════ */}
-          {(activeTab === "all" || activeTab === "member") && (
-            <section className="dl-company-section dl-scroll w-full">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#12382e" }}>
-                    <Users size={15} style={{ color: "#10B981" }} />
-                  </div>
-                  <div>
-                    <h2 className="font-semibold text-foreground text-base leading-tight">Company Member</h2>
-                    <p className="text-xs text-muted-foreground">{filteredMember.length} organization{filteredMember.length !== 1 ? "s" : ""} you belong to</p>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {myPendingInvitations.map((inv) => {
+                    const isProcessing = processingInvitationId === inv.invitationId;
+
+                    return (
+                      <div
+                        key={inv.invitationId}
+                        className="p-4 rounded-2xl bg-card border border-indigo-400/25 shadow-sm flex flex-col justify-between gap-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-foreground">{inv.companyName}</span>
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 font-semibold border border-indigo-400/25">
+                                Repo: {inv.repositoryName}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Invited as <span className="font-semibold text-foreground">@{inv.githubUsername || inv.email}</span>
+                            </p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                              <Clock size={11} className="text-amber-300" />
+                              Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2 border-t border-border">
+                          <button
+                            onClick={() => handleAcceptInvitation(inv)}
+                            disabled={isProcessing}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all disabled:opacity-50 shadow-sm shadow-black/10"
+                          >
+                            {isProcessing ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <Check size={13} />
+                            )}
+                            Accept & Join
+                          </button>
+
+                          <button
+                            onClick={() => handleRejectInvitation(inv)}
+                            disabled={isProcessing}
+                            className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-border bg-card hover:bg-red-500/10 hover:text-red-300 hover:border-red-400/25 text-muted-foreground text-xs font-semibold transition-all disabled:opacity-50"
+                          >
+                            <X size={13} />
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+            )}
 
-              <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #10B981, #06B6D4, transparent)" }} />
+            {/* ── Stats Row ── */}
+            <div className="dl-stats dl-stagger grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+              <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#182e46" }}>
+                  <Shield size={18} style={{ color: "#65d8f5" }} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground leading-none">{adminCompaniesList.length}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Admin Orgs</p>
+                </div>
+              </div>
+              <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#12382e" }}>
+                  <Users size={18} style={{ color: "#10B981" }} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground leading-none">{memberCompaniesList.length}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Member Orgs</p>
+                </div>
+              </div>
+              <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#29243f" }}>
+                  <GitBranch size={18} style={{ color: "#8B5CF6" }} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground leading-none">{totalRepos}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Total Repos</p>
+                </div>
+              </div>
+              <div className="bg-card rounded-2xl border border-border p-6 flex items-center gap-4" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#392d1e" }}>
+                  <Activity size={18} style={{ color: "#F59E0B" }} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground leading-none">{adminCompaniesList.length + memberCompaniesList.length}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Active Orgs</p>
+                </div>
+              </div>
+            </div>
 
-              {loadingMemberCompanies ? (
-                <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
-                  <Loader2 className="animate-spin text-emerald-300" size={20} />
-                  <span className="text-sm text-muted-foreground">Loading member organizations...</span>
-                </div>
-              ) : filteredMember.length === 0 ? (
-                <div className="bg-card rounded-2xl border border-border p-10 text-center">
-                  <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: "#12382e" }}>
-                    <Users size={24} style={{ color: "#10B981" }} />
-                  </div>
-                  <h3 className="text-sm font-semibold text-foreground mb-1">No member organizations yet</h3>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    When you accept an invitation to join another organization's repository, it will appear here.
-                  </p>
-                </div>
-              ) : (
-                <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredMember.map((company) => (
-                    <div
-                      key={company.companyId}
-                      onClick={() => openViewCompanyReposModal(company, "member")}
-                      className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
-                            {company.companyName.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-foreground text-sm leading-tight">{company.companyName}</h3>
-                            <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
-                          <UserCheck size={10} />
-                          Member
-                        </span>
+            {/* ── Tab Filter ── */}
+            <div className="dl-tabs flex items-center gap-1 mb-6 bg-card border border-border rounded-xl p-1 w-fit" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+              {(["all", "admin", "member"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 capitalize"
+                  style={activeTab === tab ? { background: "#196bdf", color: "#fff", boxShadow: "0 2px 8px rgba(67,97,238,0.3)" } : { color: "#a1b1c8" }}
+                >
+                  {tab === "all" ? "All Companies" : tab === "admin" ? "Admin" : "Member"}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Two Column Sections ── */}
+            <div className="flex flex-col gap-10">
+
+              {/* ════════════════════════════
+                  COMPANY ADMIN SECTION
+              ════════════════════════════ */}
+              {(activeTab === "all" || activeTab === "admin") && (
+                <section className="dl-company-section dl-scroll w-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#182e46" }}>
+                        <Crown size={15} style={{ color: "#65d8f5" }} />
                       </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-border">
-                        <span className="text-xs font-semibold text-emerald-300">
-                          {company.totalRepositories} Assigned Repo{company.totalRepositories !== 1 ? "s" : ""}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openViewCompanyReposModal(company, "member");
-                          }}
-                          className="flex items-center gap-1 text-xs font-semibold text-emerald-300 hover:underline"
-                        >
-                          View Repos <ChevronRight size={12} />
-                        </button>
+                      <div>
+                        <h2 className="font-semibold text-foreground text-base leading-tight">Company Admin</h2>
+                        <p className="text-xs text-muted-foreground">{filteredAdmin.length} organization{filteredAdmin.length !== 1 ? "s" : ""} you manage as Super Admin</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+                    <button
+                      onClick={openCreateModal}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                      style={{ background: "#196bdf" }}
+                    >
+                      <Building2 size={12} />
+                      New Org
+                    </button>
+                  </div>
 
-        </div>
+                  <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #196bdf, #7C3AED, transparent)" }} />
+
+                  {loadingCompanies ? (
+                    <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
+                      <Loader2 className="animate-spin text-primary" size={20} />
+                      <span className="text-sm text-muted-foreground">Loading your companies...</span>
+                    </div>
+                  ) : filteredAdmin.length === 0 ? (
+                    <div className="bg-card rounded-2xl border border-border p-12 text-center">
+                      <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#182e46" }}>
+                        <Crown size={28} style={{ color: "#65d8f5" }} />
+                      </div>
+                      <h3 className="text-base font-semibold text-foreground mb-1">No admin companies yet</h3>
+                      <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
+                        Verify your GitHub organization to import repositories and create your first company.
+                      </p>
+                      <button
+                        onClick={openCreateModal}
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-white px-4 py-2 rounded-xl transition-all shadow"
+                        style={{ background: "#196bdf" }}
+                      >
+                        <Building2 size={13} />
+                        Register Your Organization
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {filteredAdmin.map((company) => (
+                        <div
+                          key={company.companyId}
+                          onMouseEnter={() => setHoveredCard(company.companyId)}
+                          onMouseLeave={() => setHoveredCard(null)}
+                          className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200"
+                          style={{
+                            boxShadow: hoveredCard === company.companyId ? "0 8px 30px rgba(67,97,238,0.12)" : "0 1px 4px rgba(0,0,0,0.06)",
+                            transform: hoveredCard === company.companyId ? "translateY(-2px)" : "translateY(0)",
+                          }}
+                        >
+                          {/* Card Top */}
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
+                                {company.companyName.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company.companyName}</h3>
+                                <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
+                              </div>
+                            </div>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
+                              <Crown size={10} />
+                              Super Admin
+                            </span>
+                          </div>
+
+                          {/* Repos count & link */}
+                          <div className="bg-muted rounded-xl p-3 mb-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <GitBranch size={14} style={{ color: "#65d8f5" }} />
+                              <span className="text-xs font-semibold text-foreground">{company.totalRepositories} Repositories</span>
+                            </div>
+                            <a
+                              href={company.githubOrganizationUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] font-medium hover:underline flex items-center gap-1"
+                              style={{ color: "#65d8f5" }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              GitHub Org <ExternalLink size={10} />
+                            </a>
+                          </div>
+
+                          {/* Footer */}
+                          <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
+                            <span className="text-xs text-muted-foreground truncate">
+                              Created {new Date(company.createdAt).toLocaleDateString()}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openAnalysisPage(company, "admin");
+                                }}
+                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 transition-colors shadow-sm"
+                                title="Open full page analysis workspace"
+                              >
+                                <Play size={10} className="fill-current" /> Analyze
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openInviteModal(company);
+                                }}
+                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
+                                title="Invite repository contributors"
+                              >
+                                <UserPlus size={12} /> Invite
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openManageModal(company);
+                                }}
+                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
+                                title="Add more repos to company"
+                              >
+                                <Layers size={12} /> Repos
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* ════════════════════════════
+                  COMPANY MEMBER SECTION
+              ════════════════════════════ */}
+              {(activeTab === "all" || activeTab === "member") && (
+                <section className="dl-company-section dl-scroll w-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#12382e" }}>
+                        <Users size={15} style={{ color: "#10B981" }} />
+                      </div>
+                      <div>
+                        <h2 className="font-semibold text-foreground text-base leading-tight">Company Member</h2>
+                        <p className="text-xs text-muted-foreground">{filteredMember.length} organization{filteredMember.length !== 1 ? "s" : ""} you belong to</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #10B981, #06B6D4, transparent)" }} />
+
+                  {loadingMemberCompanies ? (
+                    <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
+                      <Loader2 className="animate-spin text-emerald-300" size={20} />
+                      <span className="text-sm text-muted-foreground">Loading member organizations...</span>
+                    </div>
+                  ) : filteredMember.length === 0 ? (
+                    <div className="bg-card rounded-2xl border border-border p-10 text-center">
+                      <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: "#12382e" }}>
+                        <Users size={24} style={{ color: "#10B981" }} />
+                      </div>
+                      <h3 className="text-sm font-semibold text-foreground mb-1">No member organizations yet</h3>
+                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                        When you accept an invitation to join another organization's repository, it will appear here.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {filteredMember.map((company) => (
+                        <div
+                          key={company.companyId}
+                          onClick={() => openAnalysisPage(company, "member")}
+                          className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25"
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
+                                {company.companyName.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company.companyName}</h3>
+                                <span className="text-xs text-muted-foreground">@{company.githubOrganizationName}</span>
+                              </div>
+                            </div>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
+                              <UserCheck size={10} />
+                              Member
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-3 border-t border-border">
+                            <span className="text-xs font-semibold text-emerald-300">
+                              {company.totalRepositories} Assigned Repo{company.totalRepositories !== 1 ? "s" : ""}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openAnalysisPage(company, "member");
+                                }}
+                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
+                              >
+                                <Play size={10} className="fill-current" /> Analyze
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openViewCompanyReposModal(company, "member");
+                                }}
+                                className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                              >
+                                Repos <ChevronRight size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+
+            </div>
+          </>
+        )}
       </main>
 
       {/* ══════════════════════════════════════════════
