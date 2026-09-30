@@ -248,19 +248,15 @@ export default function UserDashboard() {
   const [analysisRepoSearch, setAnalysisRepoSearch] = useState("");
   const [manageRepoSearch, setManageRepoSearch] = useState("");
   const [pastAnalysesCompany, setPastAnalysesCompany] = useState<CompanyAdminItem | null>(null);
-  const [pastAnalysesRepos, setPastAnalysesRepos] = useState<CompanyRepoItem[]>([]);
-  const [selectedPastRepoId, setSelectedPastRepoId] = useState<number | "ALL">("ALL");
   const [pastAnalysesList, setPastAnalysesList] = useState<PastAnalysisJob[]>([]);
   const [loadingPastAnalyses, setLoadingPastAnalyses] = useState<boolean>(false);
   const [pastAnalysesError, setPastAnalysesError] = useState<string>("");
   const [pastAnalysesSearch, setPastAnalysesSearch] = useState<string>("");
   const [pastAnalysesStatusFilter, setPastAnalysesStatusFilter] = useState<string>("ALL");
 
-  // ── Company Repositories Viewer Modal State (for Members and Admins) ──
-  const [viewingCompanyRepos, setViewingCompanyRepos] = useState<CompanyAdminItem | null>(null);
+  // ── Company Repositories Active State ──
   const [activeCompanyRepos, setActiveCompanyRepos] = useState<CompanyRepoItem[]>([]);
   const [loadingActiveCompanyRepos, setLoadingActiveCompanyRepos] = useState(false);
-  const [viewingAsRole, setViewingAsRole] = useState<"admin" | "member">("admin");
 
   // ── Analysis Execution State ──
   const [analyzingRepoIds, setAnalyzingRepoIds] = useState<Record<number, boolean>>({});
@@ -294,7 +290,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) {
@@ -319,7 +315,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -341,7 +337,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -366,7 +362,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -405,7 +401,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -448,7 +444,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -474,46 +470,32 @@ export default function UserDashboard() {
   };
 
   // Open Full Page Past Analyses Workspace
-  const openPastAnalysesPage = async (company: CompanyAdminItem, initialRepoId?: number) => {
+  const openPastAnalysesPage = async (company: CompanyAdminItem) => {
     setPastAnalysesCompany(company);
     setLoadingPastAnalyses(true);
     setPastAnalysesError("");
     setPastAnalysesSearch("");
-    setSelectedPastRepoId(initialRepoId ?? "ALL");
     setPastAnalysesStatusFilter("ALL");
 
     try {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const [reposRes, analysisRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
-        fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
-      ]);
-
-      if (reposRes.ok) {
-        const reposData = await reposRes.json();
-        setPastAnalysesRepos(Array.isArray(reposData) ? reposData.filter(Boolean) : []);
-      } else {
-        setPastAnalysesRepos([]);
+      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers });
+      if (!res.ok) {
+        throw new Error("Failed to load company past analyses history");
       }
-
-      if (analysisRes.ok) {
-        const analysisData = await analysisRes.json();
-        setPastAnalysesList(Array.isArray(analysisData) ? analysisData.filter(Boolean) : []);
-      } else {
-        setPastAnalysesList([]);
-      }
+      const data = await res.json();
+      setPastAnalysesList(Array.isArray(data) ? data.filter(Boolean) : []);
     } catch (err: any) {
       console.error("Failed to load past analyses:", err);
       setPastAnalysesError(err.message || "Could not fetch past analyses.");
       setPastAnalysesList([]);
-      setPastAnalysesRepos([]);
     } finally {
       setLoadingPastAnalyses(false);
     }
@@ -522,38 +504,7 @@ export default function UserDashboard() {
   const closePastAnalysesPage = () => {
     setPastAnalysesCompany(null);
     setPastAnalysesList([]);
-    setPastAnalysesRepos([]);
-    setSelectedPastRepoId("ALL");
     setPastAnalysesError("");
-  };
-
-  // Open Repositories Modal (for Member or Admin)
-  const openViewCompanyReposModal = async (company: CompanyAdminItem, role: "admin" | "member") => {
-    setViewingCompanyRepos(company);
-    setViewingAsRole(role);
-    setLoadingActiveCompanyRepos(true);
-    try {
-      let token = "";
-      try {
-        token = await getAccessTokenSilently();
-      } catch {}
-
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
-      if (res.ok) {
-        const data: CompanyRepoItem[] = await res.json();
-        setActiveCompanyRepos(data);
-      } else {
-        setActiveCompanyRepos([]);
-      }
-    } catch (err) {
-      console.warn("Could not fetch company repositories:", err);
-      setActiveCompanyRepos([]);
-    } finally {
-      setLoadingActiveCompanyRepos(false);
-    }
   };
 
   // Trigger analysis for a repository via RabbitMQ
@@ -563,7 +514,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -647,7 +598,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -682,7 +633,7 @@ export default function UserDashboard() {
       (c.companyName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.githubOrganizationName || "").toLowerCase().includes(searchQuery.toLowerCase())
     );
-  
+
   const displayMemberCompanies = Array.isArray(memberCompaniesList) ? memberCompaniesList : [];
   const filteredMember = displayMemberCompanies
     .filter((c) => Boolean(c && typeof c === "object"))
@@ -851,7 +802,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -907,7 +858,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const selectedReposPayload = availableRepos
         .filter((r) => selectedRepoIds.includes(r.id))
@@ -964,7 +915,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -1012,7 +963,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const selectedPayload = availableForCompany
         .filter((r) => newlySelectedRepoIds.includes(r.githubRepositoryId))
@@ -1067,7 +1018,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -1103,7 +1054,7 @@ export default function UserDashboard() {
       if (!token) {
         try {
           token = await getAccessTokenSilently();
-        } catch {}
+        } catch { }
       }
 
       const headers: Record<string, string> = {};
@@ -1205,7 +1156,7 @@ export default function UserDashboard() {
       let token = "";
       try {
         token = await getAccessTokenSilently();
-      } catch {}
+      } catch { }
 
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -1459,13 +1410,12 @@ export default function UserDashboard() {
                       return (
                         <div
                           key={repo.repositoryId}
-                          className={`bg-card rounded-2xl border p-6 transition-all duration-200 flex flex-col justify-between gap-5 relative overflow-hidden ${
-                            isCompleted
+                          className={`bg-card rounded-2xl border p-6 transition-all duration-200 flex flex-col justify-between gap-5 relative overflow-hidden ${isCompleted
                               ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5 bg-gradient-to-b from-card to-emerald-950/10"
                               : isQueuedOrRunning
-                              ? "border-indigo-500/40 shadow-lg shadow-indigo-500/5 bg-gradient-to-b from-card to-indigo-950/10"
-                              : "border-border hover:border-slate-700 shadow-sm"
-                          }`}
+                                ? "border-indigo-500/40 shadow-lg shadow-indigo-500/5 bg-gradient-to-b from-card to-indigo-950/10"
+                                : "border-border hover:border-slate-700 shadow-sm"
+                            }`}
                         >
                           {/* Repo Top */}
                           <div>
@@ -1548,11 +1498,10 @@ export default function UserDashboard() {
                               type="button"
                               onClick={() => handleStartAnalysis(repo)}
                               disabled={isQueuedOrRunning}
-                              className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-sm disabled:opacity-50 ${
-                                isCompleted
+                              className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-sm disabled:opacity-50 ${isCompleted
                                   ? "bg-card border border-border hover:bg-muted text-foreground"
                                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:scale-[1.02] active:scale-95"
-                              }`}
+                                }`}
                             >
                               {isQueuedOrRunning ? (
                                 <>
@@ -1744,13 +1693,12 @@ export default function UserDashboard() {
                       return (
                         <div
                           key={repo.githubRepositoryId}
-                          className={`bg-card rounded-2xl border transition-all duration-200 p-5 flex flex-col justify-between gap-4 ${
-                            isAlreadyAdded
+                          className={`bg-card rounded-2xl border transition-all duration-200 p-5 flex flex-col justify-between gap-4 ${isAlreadyAdded
                               ? "border-emerald-500/20 bg-emerald-950/5 opacity-80"
                               : isNewlySelected
-                              ? "border-indigo-500/50 bg-indigo-950/10 shadow-md shadow-indigo-950/10"
-                              : "border-border hover:border-slate-700 shadow-sm"
-                          }`}
+                                ? "border-indigo-500/50 bg-indigo-950/10 shadow-md shadow-indigo-950/10"
+                                : "border-border hover:border-slate-700 shadow-sm"
+                            }`}
                         >
                           <div>
                             <div className="flex items-start justify-between gap-3">
@@ -1760,9 +1708,8 @@ export default function UserDashboard() {
                                   disabled={isAlreadyAdded}
                                   checked={isAlreadyAdded || isNewlySelected}
                                   onChange={() => toggleNewRepoSelection(repo.githubRepositoryId, repo.name)}
-                                  className={`w-4 h-4 mt-0.5 rounded cursor-pointer ${
-                                    isAlreadyAdded ? "text-emerald-400" : "text-indigo-400 focus:ring-indigo-500"
-                                  }`}
+                                  className={`w-4 h-4 mt-0.5 rounded cursor-pointer ${isAlreadyAdded ? "text-emerald-400" : "text-indigo-400 focus:ring-indigo-500"
+                                    }`}
                                 />
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -1794,11 +1741,10 @@ export default function UserDashboard() {
                               <button
                                 type="button"
                                 onClick={() => handleInspectContributors(manageCompany?.githubOrganizationName || "", repo.name)}
-                                className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 shrink-0 ${
-                                  isInspecting
+                                className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 shrink-0 ${isInspecting
                                     ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
                                     : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted"
-                                }`}
+                                  }`}
                               >
                                 <Users size={12} /> Contributors
                               </button>
@@ -1951,11 +1897,10 @@ export default function UserDashboard() {
                         key={repo.repositoryId}
                         type="button"
                         onClick={() => inviteCompany && loadRepoContributorsAndInvites(inviteCompany, repo)}
-                        className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 border shadow-sm ${
-                          isSelected
+                        className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 border shadow-sm ${isSelected
                             ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-950/20 scale-105"
                             : "bg-card text-foreground border-border hover:border-slate-700 hover:bg-muted"
-                        }`}
+                          }`}
                       >
                         <GitBranch size={13} />
                         <span>{repo.repositoryName}</span>
@@ -2076,13 +2021,12 @@ export default function UserDashboard() {
                         return (
                           <div
                             key={contrib.id}
-                            className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 ${
-                              isSelected
+                            className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 ${isSelected
                                 ? "border-emerald-500/50 bg-emerald-950/10 shadow-md shadow-emerald-950/10"
                                 : pendingInvite
-                                ? "border-amber-500/30 bg-amber-950/10"
-                                : "border-border bg-card hover:border-slate-700 shadow-sm"
-                            }`}
+                                  ? "border-amber-500/30 bg-amber-950/10"
+                                  : "border-border bg-card hover:border-slate-700 shadow-sm"
+                              }`}
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center gap-3 min-w-0">
@@ -2251,168 +2195,6 @@ export default function UserDashboard() {
               </div>
             </div>
 
-            {/* ── Repository Selection Tabs (Repository-Wise Filter) ── */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <GitBranch size={13} className="text-amber-400" />
-                  Select Repository to View History
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {pastAnalysesRepos.length} repository{pastAnalysesRepos.length !== 1 ? "s" : ""} in organization
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                {/* "All Repositories" Tab */}
-                <button
-                  type="button"
-                  onClick={() => setSelectedPastRepoId("ALL")}
-                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold shrink-0 transition-all border ${
-                    selectedPastRepoId === "ALL"
-                      ? "bg-amber-500/15 border-amber-400/40 text-amber-300 shadow-sm ring-1 ring-amber-400/20"
-                      : "bg-card border-border text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <Layers size={13} />
-                  <span>All Repositories</span>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      selectedPastRepoId === "ALL"
-                        ? "bg-amber-500/30 text-amber-200"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {pastAnalysesList.length}
-                  </span>
-                </button>
-
-                {/* Individual Repository Tabs */}
-                {pastAnalysesRepos.map((repo) => {
-                  const runsForRepo = pastAnalysesList.filter(
-                    (j) => j.repositoryId === repo.repositoryId || (j.repositoryName && j.repositoryName.toLowerCase() === repo.repositoryName.toLowerCase())
-                  );
-                  const isSelected = selectedPastRepoId === repo.repositoryId;
-                  const latestRun = runsForRepo[0];
-
-                  return (
-                    <button
-                      key={repo.repositoryId}
-                      type="button"
-                      onClick={() => setSelectedPastRepoId(repo.repositoryId)}
-                      className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold shrink-0 transition-all border ${
-                        isSelected
-                          ? "bg-amber-500/15 border-amber-400/40 text-amber-300 shadow-sm ring-1 ring-amber-400/20"
-                          : "bg-card border-border text-foreground hover:bg-muted"
-                      }`}
-                    >
-                      <GitBranch size={13} />
-                      <span className="truncate max-w-[160px]">{repo.repositoryName}</span>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          isSelected
-                            ? "bg-amber-500/30 text-amber-200"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {runsForRepo.length}
-                      </span>
-                      {latestRun && (
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            latestRun.status === "COMPLETED"
-                              ? "bg-emerald-400 ring-2 ring-emerald-400/20"
-                              : latestRun.status === "FAILED"
-                              ? "bg-red-400 ring-2 ring-red-400/20"
-                              : "bg-blue-400 animate-ping"
-                          }`}
-                          title={`Latest run: ${latestRun.status}`}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── If a Specific Repository is Selected ── */}
-            {selectedPastRepoId !== "ALL" && (() => {
-              const currentRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
-              const repoRuns = pastAnalysesList.filter(
-                (j) => j.repositoryId === selectedPastRepoId || (currentRepo && j.repositoryName && j.repositoryName.toLowerCase() === currentRepo.repositoryName.toLowerCase())
-              );
-              const completedRepoRuns = repoRuns.filter((j) => j.status === "COMPLETED");
-
-              return (
-                <div className="p-6 rounded-3xl border border-border bg-card/60 backdrop-blur-sm space-y-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold shrink-0">
-                        <GitBranch size={22} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-bold text-lg text-foreground">{currentRepo?.repositoryName || "Repository"}</h3>
-                          {currentRepo?.defaultBranch && (
-                            <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-medium">
-                              {currentRepo.defaultBranch}
-                            </span>
-                          )}
-                          <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-300 border border-amber-400/20">
-                            {repoRuns.length} Total Run{repoRuns.length !== 1 ? "s" : ""}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {completedRepoRuns.length} completed evaluation{completedRepoRuns.length !== 1 ? "s" : ""} with prioritized technical debt scores.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {currentRepo && (
-                        <button
-                          type="button"
-                          onClick={() => handleStartAnalysis(currentRepo)}
-                          disabled={analyzingRepoIds[currentRepo.repositoryId]}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-                          style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
-                        >
-                          {analyzingRepoIds[currentRepo.repositoryId] ? (
-                            <>
-                              <Loader2 size={13} className="animate-spin" />
-                              <span>Queueing...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play size={12} className="fill-current" />
-                              <span>Run Analysis</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {currentRepo?.repositoryUrl && (
-                        <a
-                          href={currentRepo.repositoryUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors"
-                        >
-                          GitHub <ExternalLink size={12} />
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPastRepoId("ALL")}
-                        className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
-                      >
-                        View All Repos
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* Filter and Search Bar */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="relative w-full sm:w-80">
@@ -2431,87 +2213,42 @@ export default function UserDashboard() {
                 <button
                   type="button"
                   onClick={() => setPastAnalysesStatusFilter("ALL")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    pastAnalysesStatusFilter === "ALL"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${pastAnalysesStatusFilter === "ALL"
                       ? "bg-card text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
-                  All (
-                  {
-                    pastAnalysesList.filter((job) => {
-                      if (selectedPastRepoId === "ALL") return true;
-                      const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
-                      return job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
-                    }).length
-                  }
-                  )
+                  All ({pastAnalysesList.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setPastAnalysesStatusFilter("COMPLETED")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    pastAnalysesStatusFilter === "COMPLETED"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${pastAnalysesStatusFilter === "COMPLETED"
                       ? "bg-emerald-500/10 text-emerald-300 shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
-                  Completed (
-                  {
-                    pastAnalysesList.filter((job) => {
-                      if (selectedPastRepoId !== "ALL") {
-                        const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
-                        const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
-                        if (!matchRepo) return false;
-                      }
-                      return job.status === "COMPLETED";
-                    }).length
-                  }
-                  )
+                  Completed ({pastAnalysesList.filter((j) => j.status === "COMPLETED").length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setPastAnalysesStatusFilter("RUNNING")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    pastAnalysesStatusFilter === "RUNNING"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${pastAnalysesStatusFilter === "RUNNING"
                       ? "bg-indigo-500/10 text-indigo-300 shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
-                  Running (
-                  {
-                    pastAnalysesList.filter((job) => {
-                      if (selectedPastRepoId !== "ALL") {
-                        const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
-                        const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
-                        if (!matchRepo) return false;
-                      }
-                      return job.status === "RUNNING" || job.status === "QUEUED";
-                    }).length
-                  }
-                  )
+                  Running ({pastAnalysesList.filter((j) => j.status === "RUNNING" || j.status === "QUEUED").length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setPastAnalysesStatusFilter("FAILED")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    pastAnalysesStatusFilter === "FAILED"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${pastAnalysesStatusFilter === "FAILED"
                       ? "bg-red-500/10 text-red-300 shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
-                  Failed (
-                  {
-                    pastAnalysesList.filter((job) => {
-                      if (selectedPastRepoId !== "ALL") {
-                        const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
-                        const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
-                        if (!matchRepo) return false;
-                      }
-                      return job.status === "FAILED";
-                    }).length
-                  }
-                  )
+                  Failed ({pastAnalysesList.filter((j) => j.status === "FAILED").length})
                 </button>
               </div>
             </div>
@@ -2525,7 +2262,7 @@ export default function UserDashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => openPastAnalysesPage(pastAnalysesCompany, selectedPastRepoId === "ALL" ? undefined : selectedPastRepoId)}
+                  onClick={() => openPastAnalysesPage(pastAnalysesCompany)}
                   className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-semibold text-red-200 transition-colors"
                 >
                   Retry
@@ -2537,78 +2274,51 @@ export default function UserDashboard() {
             {loadingPastAnalyses ? (
               <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-3">
                 <Loader2 size={32} className="animate-spin text-amber-400" />
-                <p className="font-semibold text-sm text-foreground">Loading repository past analyses...</p>
+                <p className="font-semibold text-sm text-foreground">Loading past analyses...</p>
                 <p className="text-xs text-muted-foreground">Fetching job logs, timing metrics, and completed reports.</p>
               </div>
-            ) : (() => {
-              const filteredJobs = pastAnalysesList.filter((job) => {
-                // Repository filter
-                if (selectedPastRepoId !== "ALL") {
-                  const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
-                  const matchRepo = job.repositoryId === selectedPastRepoId || (selectedRepo && job.repositoryName && job.repositoryName.toLowerCase() === selectedRepo.repositoryName.toLowerCase());
-                  if (!matchRepo) return false;
-                }
-
-                // Search query filter
-                if (pastAnalysesSearch) {
-                  const q = pastAnalysesSearch.toLowerCase();
-                  const matchRepo = (job.repositoryName || "").toLowerCase().includes(q);
-                  const matchBranch = (job.branch || "").toLowerCase().includes(q);
-                  const matchUser = (job.startedByUserName || "").toLowerCase().includes(q);
-                  if (!matchRepo && !matchBranch && !matchUser) return false;
-                }
-
-                // Status filter
-                if (pastAnalysesStatusFilter === "COMPLETED") return job.status === "COMPLETED";
-                if (pastAnalysesStatusFilter === "RUNNING") return job.status === "RUNNING" || job.status === "QUEUED";
-                if (pastAnalysesStatusFilter === "FAILED") return job.status === "FAILED";
-                return true;
-              });
-
-              if (filteredJobs.length === 0) {
-                const selectedRepo = pastAnalysesRepos.find((r) => r.repositoryId === selectedPastRepoId);
-
-                return (
-                  <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                      <History size={28} />
-                    </div>
-                    <div className="max-w-md space-y-1">
-                      <h3 className="font-bold text-base text-foreground">
-                        {selectedPastRepoId !== "ALL"
-                          ? `No Analysis History for ${selectedRepo?.repositoryName || "this repository"}`
-                          : "No Analysis History Found"}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedPastRepoId !== "ALL"
-                          ? `No past analysis jobs have been executed yet for repository ${selectedRepo?.repositoryName || ""}.`
-                          : `No code metrics analysis jobs have been executed for ${pastAnalysesCompany?.companyName || "this organization"} yet.`}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedRepo) {
-                          handleStartAnalysis(selectedRepo);
-                        } else {
-                          const comp = pastAnalysesCompany;
-                          closePastAnalysesPage();
-                          if (comp) openAnalysisPage(comp, "admin");
-                        }
-                      }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white shadow-md transition-all hover:scale-105 active:scale-95"
-                      style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
-                    >
-                      <Play size={13} className="fill-current" />
-                      <span>{selectedRepo ? `Start Analysis on ${selectedRepo.defaultBranch || "main"}` : "Start First Analysis"}</span>
-                    </button>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-3">
-                  {filteredJobs.map((job) => {
+            ) : pastAnalysesList.length === 0 ? (
+              <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <History size={28} />
+                </div>
+                <div className="max-w-md space-y-1">
+                  <h3 className="font-bold text-base text-foreground">No Analysis History Found</h3>
+                  <p className="text-xs text-muted-foreground">
+                    No code metrics analysis jobs have been executed for {pastAnalysesCompany?.companyName || "this organization"} yet.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const comp = pastAnalysesCompany;
+                    closePastAnalysesPage();
+                    if (comp) openAnalysisPage(comp, "admin");
+                  }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white shadow-md transition-all hover:scale-105 active:scale-95"
+                  style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
+                >
+                  <Play size={13} className="fill-current" />
+                  <span>Start First Analysis</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pastAnalysesList
+                  .filter((job) => {
+                    if (pastAnalysesSearch) {
+                      const q = pastAnalysesSearch.toLowerCase();
+                      const matchRepo = (job.repositoryName || "").toLowerCase().includes(q);
+                      const matchBranch = (job.branch || "").toLowerCase().includes(q);
+                      const matchUser = (job.startedByUserName || "").toLowerCase().includes(q);
+                      if (!matchRepo && !matchBranch && !matchUser) return false;
+                    }
+                    if (pastAnalysesStatusFilter === "COMPLETED") return job.status === "COMPLETED";
+                    if (pastAnalysesStatusFilter === "RUNNING") return job.status === "RUNNING" || job.status === "QUEUED";
+                    if (pastAnalysesStatusFilter === "FAILED") return job.status === "FAILED";
+                    return true;
+                  })
+                  .map((job) => {
                     const isCompleted = job.status === "COMPLETED";
                     const isFailed = job.status === "FAILED";
                     const isRunning = job.status === "RUNNING" || job.status === "QUEUED";
@@ -2633,11 +2343,7 @@ export default function UserDashboard() {
 
                           <div className="min-w-0 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                onClick={() => setSelectedPastRepoId(job.repositoryId)}
-                                className="font-bold text-base text-foreground hover:text-amber-400 cursor-pointer transition-colors truncate"
-                                title="Click to filter runs for this repository"
-                              >
+                              <span className="font-bold text-base text-foreground truncate">
                                 {job.repositoryName || "Repository"}
                               </span>
                               <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-medium">
@@ -2717,9 +2423,8 @@ export default function UserDashboard() {
                       </div>
                     );
                   })}
-                </div>
-              );
-            })()}
+              </div>
+            )}
           </div>
         ) : (
           /* ════════════════════════════════════════════════════════════════
@@ -2745,11 +2450,10 @@ export default function UserDashboard() {
             {/* ── Action Feedback Toast ── */}
             {invitationActionMsg && (
               <div
-                className={`p-4 rounded-2xl border mb-6 flex items-center justify-between gap-3 animate-in fade-in duration-200 ${
-                  invitationActionMsg.type === "success"
+                className={`p-4 rounded-2xl border mb-6 flex items-center justify-between gap-3 animate-in fade-in duration-200 ${invitationActionMsg.type === "success"
                     ? "bg-emerald-500/10 border-emerald-400/25 text-emerald-300"
                     : "bg-red-500/10 border-red-400/25 text-red-300"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2.5 text-xs font-semibold">
                   {invitationActionMsg.type === "success" ? (
@@ -3139,15 +2843,6 @@ export default function UserDashboard() {
                               >
                                 <History size={11} /> Past Analyses
                               </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openViewCompanyReposModal(company, "member");
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                              >
-                                Repos <ChevronRight size={12} />
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -3327,9 +3022,8 @@ export default function UserDashboard() {
                         return (
                           <div
                             key={repo.id}
-                            className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                              isSelected ? "border-indigo-500 bg-indigo-500/10" : "border-border bg-card hover:border-border"
-                            }`}
+                            className={`rounded-2xl border transition-all duration-200 overflow-hidden ${isSelected ? "border-indigo-500 bg-indigo-500/10" : "border-border bg-card hover:border-border"
+                              }`}
                           >
                             {/* Repo Row */}
                             <div className="p-3.5 flex items-center justify-between gap-3">
@@ -3486,242 +3180,6 @@ export default function UserDashboard() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════
-          MODAL: COMPANY REPOSITORIES VIEWER (Assigned Repos for Members & Admins)
-      ═══════════════════════════════════════════ */}
-      {viewingCompanyRepos && (
-        <div className="dl-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card rounded-3xl border border-border shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-base shadow-md shrink-0"
-                  style={{
-                    background:
-                      viewingAsRole === "member"
-                        ? "linear-gradient(135deg, #10B981, #059669)"
-                        : "linear-gradient(135deg, #196bdf, #7C3AED)",
-                  }}
-                >
-                  {(viewingCompanyRepos?.companyName || "CO").slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-foreground">
-                      {viewingCompanyRepos?.companyName || "Organization"}
-                    </h2>
-                    <span
-                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{
-                        background: viewingAsRole === "member" ? "#12382e" : "#182e46",
-                        color: viewingAsRole === "member" ? "#7de3b2" : "#65d8f5",
-                      }}
-                    >
-                      {viewingAsRole === "member" ? "Assigned Member" : "Super Admin"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {viewingAsRole === "member"
-                      ? "Repositories assigned to you by the organization administrator."
-                      : "All repositories connected to this organization."}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                aria-label="Close repositories"
-                onClick={() => setViewingCompanyRepos(null)}
-                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-4 flex-1">
-              {loadingActiveCompanyRepos ? (
-                <div className="p-12 text-center flex flex-col items-center justify-center gap-3">
-                  <Loader2 size={24} className="animate-spin text-emerald-300" />
-                  <span className="text-sm text-muted-foreground">
-                    Loading your accessible repositories...
-                  </span>
-                </div>
-              ) : activeCompanyRepos.length === 0 ? (
-                <div className="p-10 rounded-2xl bg-muted/40 border border-border text-center">
-                  <GitBranch size={28} className="mx-auto mb-2 text-muted-foreground" />
-                  <h4 className="text-sm font-semibold text-foreground mb-1">
-                    No repositories assigned yet
-                  </h4>
-                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                    {viewingAsRole === "member"
-                      ? "You do not have any repositories assigned to you in this company yet. Ask your Super Admin to assign repositories."
-                      : "No repositories have been imported into this company yet."}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
-                    <span>{activeCompanyRepos.length} accessible repository{activeCompanyRepos.length !== 1 ? "s" : ""}</span>
-                    <span>Action</span>
-                  </div>
-
-                  {activeCompanyRepos.map((repo) => (
-                    <div
-                      key={repo.repositoryId}
-                      className="p-4 rounded-2xl border border-border bg-card hover:border-emerald-400/25 hover:shadow-sm transition-all flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                          style={{
-                            background:
-                              viewingAsRole === "member" ? "#12382e" : "#182e46",
-                            color:
-                              viewingAsRole === "member" ? "#10B981" : "#65d8f5",
-                          }}
-                        >
-                          <GitBranch size={18} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-foreground truncate">
-                              {repo.repositoryName}
-                            </span>
-                            {repo.defaultBranch && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono">
-                                {repo.defaultBranch}
-                              </span>
-                            )}
-                            <span
-                              className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                              style={{
-                                background:
-                                  viewingAsRole === "member" ? "#12382e" : "#182e46",
-                                color:
-                                  viewingAsRole === "member" ? "#7de3b2" : "#65d8f5",
-                              }}
-                            >
-                              {viewingAsRole === "member" ? "Assigned" : "Admin"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            {repo.createdAt ? `Added ${new Date(repo.createdAt).toLocaleDateString()}` : "Active Repository"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                        {/* Analysis Status Badge */}
-                        {analysisStatusMap[repo.repositoryId] && (
-                          <div
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold border"
-                            style={{
-                              background:
-                                analysisStatusMap[repo.repositoryId].status === "COMPLETED"
-                                  ? "#12382e"
-                                  : analysisStatusMap[repo.repositoryId].status === "FAILED"
-                                  ? "#3a202b"
-                                  : "#172e49",
-                              borderColor:
-                                analysisStatusMap[repo.repositoryId].status === "COMPLETED"
-                                  ? "#366753"
-                                  : analysisStatusMap[repo.repositoryId].status === "FAILED"
-                                  ? "#704352"
-                                  : "#3c5d7f",
-                              color:
-                                analysisStatusMap[repo.repositoryId].status === "COMPLETED"
-                                  ? "#7de3b2"
-                                  : analysisStatusMap[repo.repositoryId].status === "FAILED"
-                                  ? "#ff9ca6"
-                                  : "#79beff",
-                            }}
-                          >
-                            {analysisStatusMap[repo.repositoryId].status === "COMPLETED" ? (
-                              <CheckCircle2 size={12} className="text-emerald-300" />
-                            ) : analysisStatusMap[repo.repositoryId].status === "FAILED" ? (
-                              <AlertCircle size={12} className="text-red-300" />
-                            ) : (
-                              <Loader2 size={12} className="animate-spin text-blue-300" />
-                            )}
-                            <span>
-                              {analysisStatusMap[repo.repositoryId].status === "COMPLETED"
-                                ? `Analyzed (${analysisStatusMap[repo.repositoryId].totalClasses ?? 0} classes)`
-                                : analysisStatusMap[repo.repositoryId].status === "FAILED"
-                                ? "Analysis Failed"
-                                : "Queued / Running..."}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* View Report & Recommendations Button (When Completed) */}
-                        {analysisStatusMap[repo.repositoryId]?.status === "COMPLETED" && analysisStatusMap[repo.repositoryId]?.analysisId && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenReport(analysisStatusMap[repo.repositoryId].analysisId!)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/10 border border-emerald-400/25 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
-                            title="View Technical Debt Report & Prioritized Recommendations"
-                          >
-                            <Sparkles size={12} className="text-emerald-300" />
-                            <span>View Recommendations</span>
-                          </button>
-                        )}
-
-                        {/* Start Analysis Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleStartAnalysis(repo)}
-                          disabled={analyzingRepoIds[repo.repositoryId]}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-sm transition-all hover:shadow hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-                          style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
-                          title="Trigger code metrics & technical debt analysis"
-                        >
-                          {analyzingRepoIds[repo.repositoryId] ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin" />
-                              <span>Queueing...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play size={11} className="fill-current" />
-                              <span>Start Analysis</span>
-                            </>
-                          )}
-                        </button>
-
-                        <a
-                          href={repo.repositoryUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors"
-                        >
-                          GitHub <ExternalLink size={12} />
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-border bg-muted flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Organization: @{viewingCompanyRepos.githubOrganizationName}
-              </span>
-              <button
-                type="button"
-                aria-label="Close repositories"
-                onClick={() => setViewingCompanyRepos(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ── TECHNICAL DEBT REPORT & PRIORITIZED RECOMMENDATIONS MODAL ─────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -3797,10 +3255,10 @@ export default function UserDashboard() {
                               activeReport.overallDebtScore < 25
                                 ? "#137756"
                                 : activeReport.overallDebtScore < 50
-                                ? "#3B82F6"
-                                : activeReport.overallDebtScore < 75
-                                ? "#F59E0B"
-                                : "#EF4444",
+                                  ? "#3B82F6"
+                                  : activeReport.overallDebtScore < 75
+                                    ? "#F59E0B"
+                                    : "#EF4444",
                           }}
                         />
                       </div>
@@ -3817,18 +3275,18 @@ export default function UserDashboard() {
                               activeReport.overallHealthScore === "EXCELLENT"
                                 ? "#12382e"
                                 : activeReport.overallHealthScore === "GOOD"
-                                ? "#172e49"
-                                : activeReport.overallHealthScore === "FAIR"
-                                ? "#392d1e"
-                                : "#3a202b",
+                                  ? "#172e49"
+                                  : activeReport.overallHealthScore === "FAIR"
+                                    ? "#392d1e"
+                                    : "#3a202b",
                             color:
                               activeReport.overallHealthScore === "EXCELLENT"
                                 ? "#7de3b2"
                                 : activeReport.overallHealthScore === "GOOD"
-                                ? "#8ccaff"
-                                : activeReport.overallHealthScore === "FAIR"
-                                ? "#f6ce7a"
-                                : "#fca5a5",
+                                  ? "#8ccaff"
+                                  : activeReport.overallHealthScore === "FAIR"
+                                    ? "#f6ce7a"
+                                    : "#fca5a5",
                           }}
                         >
                           {activeReport.overallHealthScore}
@@ -3885,22 +3343,20 @@ export default function UserDashboard() {
                       <button
                         type="button"
                         onClick={() => setSelectedClassFilter("ALL")}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          selectedClassFilter === "ALL"
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "ALL"
                             ? "bg-card text-foreground shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
-                        }`}
+                          }`}
                       >
                         All ({activeReport.prioritizedRefactoringList.length})
                       </button>
                       <button
                         type="button"
                         onClick={() => setSelectedClassFilter("CRITICAL")}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          selectedClassFilter === "CRITICAL"
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "CRITICAL"
                             ? "bg-red-500/10 text-red-300 shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
-                        }`}
+                          }`}
                       >
                         Critical (
                         {
@@ -3913,11 +3369,10 @@ export default function UserDashboard() {
                       <button
                         type="button"
                         onClick={() => setSelectedClassFilter("HIGH")}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          selectedClassFilter === "HIGH"
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "HIGH"
                             ? "bg-amber-500/10 text-amber-300 shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
-                        }`}
+                          }`}
                       >
                         High Debt (
                         {
@@ -3955,14 +3410,14 @@ export default function UserDashboard() {
                                   cls.refactorPriorityRank === 1
                                     ? "#3a202b"
                                     : cls.refactorPriorityRank <= 3
-                                    ? "#392d1e"
-                                    : "#1b293d",
+                                      ? "#392d1e"
+                                      : "#1b293d",
                                 color:
                                   cls.refactorPriorityRank === 1
                                     ? "#fca5a5"
                                     : cls.refactorPriorityRank <= 3
-                                    ? "#f6ce7a"
-                                    : "#b3c4d9",
+                                      ? "#f6ce7a"
+                                      : "#b3c4d9",
                               }}
                             >
                               #{cls.refactorPriorityRank}
@@ -3985,8 +3440,8 @@ export default function UserDashboard() {
                                   <span className="font-mono tracking-tight">
                                     {cls.filePath
                                       ? cls.filePath.replace(/\\/g, "/").split(/analysis-repository-[^/]+\//)[1] ||
-                                        cls.filePath.split("/").slice(-2).join("/") ||
-                                        cls.filePath
+                                      cls.filePath.split("/").slice(-2).join("/") ||
+                                      cls.filePath
                                       : "source file"}
                                   </span>
                                   <span className="text-indigo-300 font-medium text-[11px]">
@@ -4028,14 +3483,14 @@ export default function UserDashboard() {
                                   cls.riskLevel === "CRITICAL"
                                     ? "#3a202b"
                                     : cls.riskLevel === "HIGH"
-                                    ? "#392d1e"
-                                    : "#172e49",
+                                      ? "#392d1e"
+                                      : "#172e49",
                                 color:
                                   cls.riskLevel === "CRITICAL"
                                     ? "#fca5a5"
                                     : cls.riskLevel === "HIGH"
-                                    ? "#f6ce7a"
-                                    : "#8ccaff",
+                                      ? "#f6ce7a"
+                                      : "#8ccaff",
                               }}
                             >
                               <span className="block text-[10px] uppercase font-bold tracking-wider opacity-80">Risk</span>
@@ -4050,10 +3505,10 @@ export default function UserDashboard() {
                                   cls.technicalDebtScore >= 75
                                     ? "#922e3b"
                                     : cls.technicalDebtScore >= 50
-                                    ? "#926017"
-                                    : cls.technicalDebtScore >= 25
-                                    ? "#2563EB"
-                                    : "#137756",
+                                      ? "#926017"
+                                      : cls.technicalDebtScore >= 25
+                                        ? "#2563EB"
+                                        : "#137756",
                                 color: "#FFFFFF",
                               }}
                             >
