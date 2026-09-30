@@ -34,6 +34,8 @@ import {
   Code2,
   Tag,
   FileCode,
+  History,
+  RotateCw,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 
@@ -150,6 +152,23 @@ interface InvitationResponse {
   createdAt: string;
 }
 
+interface PastAnalysisJob {
+  analysisId: number;
+  repositoryId: number;
+  repositoryName: string;
+  repositoryUrl: string;
+  companyId: number;
+  companyName: string;
+  branch: string;
+  startedByUserId: number | null;
+  startedByUserName: string | null;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | string;
+  startedAt: string;
+  completedAt: string | null;
+  totalClassesAnalyzed?: number;
+  totalClasses?: number;
+}
+
 export default function UserDashboard() {
   const { user: authUser, logout, getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
   const [searchQuery, setSearchQuery] = useState("");
@@ -228,6 +247,12 @@ export default function UserDashboard() {
   const [analysisPageRole, setAnalysisPageRole] = useState<"admin" | "member">("admin");
   const [analysisRepoSearch, setAnalysisRepoSearch] = useState("");
   const [manageRepoSearch, setManageRepoSearch] = useState("");
+  const [pastAnalysesCompany, setPastAnalysesCompany] = useState<CompanyAdminItem | null>(null);
+  const [pastAnalysesList, setPastAnalysesList] = useState<PastAnalysisJob[]>([]);
+  const [loadingPastAnalyses, setLoadingPastAnalyses] = useState<boolean>(false);
+  const [pastAnalysesError, setPastAnalysesError] = useState<string>("");
+  const [pastAnalysesSearch, setPastAnalysesSearch] = useState<string>("");
+  const [pastAnalysesStatusFilter, setPastAnalysesStatusFilter] = useState<string>("ALL");
 
   // ── Company Repositories Viewer Modal State (for Members and Admins) ──
   const [viewingCompanyRepos, setViewingCompanyRepos] = useState<CompanyAdminItem | null>(null);
@@ -444,6 +469,44 @@ export default function UserDashboard() {
   const closeAnalysisPage = () => {
     setAnalysisPageCompany(null);
     setAnalysisRepoSearch("");
+  };
+
+  // Open Full Page Past Analyses Workspace
+  const openPastAnalysesPage = async (company: CompanyAdminItem) => {
+    setPastAnalysesCompany(company);
+    setLoadingPastAnalyses(true);
+    setPastAnalysesError("");
+    setPastAnalysesSearch("");
+    setPastAnalysesStatusFilter("ALL");
+
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch {}
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers });
+      if (!res.ok) {
+        throw new Error("Failed to load company past analyses history");
+      }
+      const data = await res.json();
+      setPastAnalysesList(Array.isArray(data) ? data.filter(Boolean) : []);
+    } catch (err: any) {
+      console.error("Failed to load past analyses:", err);
+      setPastAnalysesError(err.message || "Could not fetch past analyses.");
+      setPastAnalysesList([]);
+    } finally {
+      setLoadingPastAnalyses(false);
+    }
+  };
+
+  const closePastAnalysesPage = () => {
+    setPastAnalysesCompany(null);
+    setPastAnalysesList([]);
+    setPastAnalysesError("");
   };
 
   // Open Repositories Modal (for Member or Admin)
@@ -1276,6 +1339,19 @@ export default function UserDashboard() {
                   {analysisPageRole === "member" ? <UserCheck size={12} /> : <Crown size={12} />}
                   {analysisPageRole === "member" ? "Member Workspace" : "Super Admin"}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const comp = analysisPageCompany;
+                    closeAnalysisPage();
+                    if (comp) openPastAnalysesPage(comp);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all shadow-sm"
+                  title="View previous analysis execution history and reports"
+                >
+                  <History size={13} className="text-amber-400" />
+                  <span>Past Analyses</span>
+                </button>
                 <a
                   href={analysisPageCompany?.githubOrganizationUrl || "#"}
                   target="_blank"
@@ -2059,6 +2135,339 @@ export default function UserDashboard() {
               </div>
             )}
           </div>
+        ) : pastAnalysesCompany ? (
+          /* ════════════════════════════════════════════════════════════════
+             FULL PAGE PAST ANALYSES & EXECUTION HISTORY WORKSPACE
+             ════════════════════════════════════════════════════════════════ */
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* Top Back Navigation Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={closePastAnalysesPage}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
+                >
+                  <ArrowLeft size={14} /> Back to Companies
+                </button>
+                <div className="h-5 w-px bg-border hidden sm:block" />
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Companies</span>
+                  <ChevronRight size={12} />
+                  <span className="font-semibold text-foreground">{pastAnalysesCompany?.companyName || "Organization"}</span>
+                  <ChevronRight size={12} />
+                  <span className="text-amber-400 font-medium">Past Analyses & History</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openPastAnalysesPage(pastAnalysesCompany)}
+                  disabled={loadingPastAnalyses}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all shadow-sm disabled:opacity-50"
+                  title="Reload analysis jobs history"
+                >
+                  <RotateCw size={13} className={loadingPastAnalyses ? "animate-spin text-amber-400" : "text-amber-400"} />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const comp = pastAnalysesCompany;
+                    closePastAnalysesPage();
+                    if (comp) openAnalysisPage(comp, "admin");
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-sm transition-all hover:shadow hover:scale-105 active:scale-95"
+                  style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
+                >
+                  <Play size={12} className="fill-current" />
+                  <span>Run New Analysis</span>
+                </button>
+                <a
+                  href={pastAnalysesCompany?.githubOrganizationUrl || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+                >
+                  @{pastAnalysesCompany?.githubOrganizationName || "org"} <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
+
+            {/* Workspace Hero Banner */}
+            <div className="p-6 md:p-8 rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-950/30 via-card to-indigo-950/20 shadow-xl relative overflow-hidden">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+                <div className="space-y-2 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold">
+                    <History size={13} />
+                    <span>Technical Debt Execution Logs</span>
+                  </div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                    {pastAnalysesCompany?.companyName || "Organization"} Past Analyses
+                  </h1>
+                  <p className="text-sm text-slate-300 leading-relaxed">
+                    View comprehensive audit trails of previous code analysis jobs, inspect historical metrics, and open prioritized refactoring recommendations for any completed run.
+                  </p>
+                </div>
+
+                {/* Stats Counter Cards */}
+                <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
+                  <div className="p-3.5 rounded-2xl bg-card/80 border border-border/80 text-center min-w-[100px] backdrop-blur-sm">
+                    <span className="block text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Runs</span>
+                    <span className="text-xl font-black text-foreground">{pastAnalysesList.length}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/20 text-center min-w-[100px] backdrop-blur-sm">
+                    <span className="block text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Completed</span>
+                    <span className="text-xl font-black text-emerald-300">
+                      {pastAnalysesList.filter((j) => j.status === "COMPLETED").length}
+                    </span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 text-center min-w-[100px] backdrop-blur-sm">
+                    <span className="block text-[10px] uppercase font-bold text-indigo-400 tracking-wider">In Progress</span>
+                    <span className="text-xl font-black text-indigo-300">
+                      {pastAnalysesList.filter((j) => j.status === "RUNNING" || j.status === "QUEUED").length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="relative w-full sm:w-80">
+                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search repository, branch, or requester..."
+                  value={pastAnalysesSearch}
+                  onChange={(e) => setPastAnalysesSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-border bg-card text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50"
+                />
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted border border-border w-full sm:w-auto overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setPastAnalysesStatusFilter("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    pastAnalysesStatusFilter === "ALL"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  All ({pastAnalysesList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPastAnalysesStatusFilter("COMPLETED")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    pastAnalysesStatusFilter === "COMPLETED"
+                      ? "bg-emerald-500/10 text-emerald-300 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Completed ({pastAnalysesList.filter((j) => j.status === "COMPLETED").length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPastAnalysesStatusFilter("RUNNING")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    pastAnalysesStatusFilter === "RUNNING"
+                      ? "bg-indigo-500/10 text-indigo-300 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Running ({pastAnalysesList.filter((j) => j.status === "RUNNING" || j.status === "QUEUED").length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPastAnalysesStatusFilter("FAILED")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    pastAnalysesStatusFilter === "FAILED"
+                      ? "bg-red-500/10 text-red-300 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Failed ({pastAnalysesList.filter((j) => j.status === "FAILED").length})
+                </button>
+              </div>
+            </div>
+
+            {/* Error banner if any */}
+            {pastAnalysesError && (
+              <div className="p-4 rounded-2xl bg-red-500/10 border border-red-400/25 text-red-300 text-xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{pastAnalysesError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openPastAnalysesPage(pastAnalysesCompany)}
+                  className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-semibold text-red-200 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Past Analyses Content */}
+            {loadingPastAnalyses ? (
+              <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-3">
+                <Loader2 size={32} className="animate-spin text-amber-400" />
+                <p className="font-semibold text-sm text-foreground">Loading past analyses...</p>
+                <p className="text-xs text-muted-foreground">Fetching job logs, timing metrics, and completed reports.</p>
+              </div>
+            ) : pastAnalysesList.length === 0 ? (
+              <div className="p-16 rounded-3xl border border-border bg-card text-center flex flex-col items-center justify-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <History size={28} />
+                </div>
+                <div className="max-w-md space-y-1">
+                  <h3 className="font-bold text-base text-foreground">No Analysis History Found</h3>
+                  <p className="text-xs text-muted-foreground">
+                    No code metrics analysis jobs have been executed for {pastAnalysesCompany?.companyName || "this organization"} yet.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const comp = pastAnalysesCompany;
+                    closePastAnalysesPage();
+                    if (comp) openAnalysisPage(comp, "admin");
+                  }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white shadow-md transition-all hover:scale-105 active:scale-95"
+                  style={{ background: "linear-gradient(135deg, #196bdf, #7C3AED)" }}
+                >
+                  <Play size={13} className="fill-current" />
+                  <span>Start First Analysis</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pastAnalysesList
+                  .filter((job) => {
+                    if (pastAnalysesSearch) {
+                      const q = pastAnalysesSearch.toLowerCase();
+                      const matchRepo = (job.repositoryName || "").toLowerCase().includes(q);
+                      const matchBranch = (job.branch || "").toLowerCase().includes(q);
+                      const matchUser = (job.startedByUserName || "").toLowerCase().includes(q);
+                      if (!matchRepo && !matchBranch && !matchUser) return false;
+                    }
+                    if (pastAnalysesStatusFilter === "COMPLETED") return job.status === "COMPLETED";
+                    if (pastAnalysesStatusFilter === "RUNNING") return job.status === "RUNNING" || job.status === "QUEUED";
+                    if (pastAnalysesStatusFilter === "FAILED") return job.status === "FAILED";
+                    return true;
+                  })
+                  .map((job) => {
+                    const isCompleted = job.status === "COMPLETED";
+                    const isFailed = job.status === "FAILED";
+                    const isRunning = job.status === "RUNNING" || job.status === "QUEUED";
+                    const classCount = job.totalClassesAnalyzed ?? job.totalClasses ?? 0;
+
+                    return (
+                      <div
+                        key={job.analysisId}
+                        className="p-5 rounded-2xl border border-border bg-card hover:border-amber-400/25 hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      >
+                        {/* Left: Job Meta & Repo */}
+                        <div className="flex items-start gap-4 min-w-0">
+                          <div
+                            className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 shadow-sm"
+                            style={{
+                              background: isCompleted ? "#12382e" : isFailed ? "#3a202b" : "#1b293d",
+                              color: isCompleted ? "#7de3b2" : isFailed ? "#fca5a5" : "#65d8f5",
+                            }}
+                          >
+                            #{job.analysisId}
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-base text-foreground truncate">
+                                {job.repositoryName || "Repository"}
+                              </span>
+                              <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-medium">
+                                {job.branch || "main"}
+                              </span>
+                              {/* Status Badge */}
+                              <span
+                                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border"
+                                style={{
+                                  background: isCompleted ? "#12382e" : isFailed ? "#3a202b" : "#172e49",
+                                  borderColor: isCompleted ? "#366753" : isFailed ? "#704352" : "#3c5d7f",
+                                  color: isCompleted ? "#7de3b2" : isFailed ? "#ff9ca6" : "#79beff",
+                                }}
+                              >
+                                {isCompleted ? (
+                                  <CheckCircle2 size={11} className="text-emerald-300" />
+                                ) : isFailed ? (
+                                  <AlertCircle size={11} className="text-red-300" />
+                                ) : (
+                                  <Loader2 size={11} className="animate-spin text-blue-300" />
+                                )}
+                                <span>{job.status}</span>
+                              </span>
+                            </div>
+
+                            {/* Details Row */}
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                              <span className="inline-flex items-center gap-1">
+                                <Clock size={12} />
+                                {job.startedAt ? new Date(job.startedAt).toLocaleString() : "Date unavailable"}
+                              </span>
+                              {job.startedByUserName && (
+                                <>
+                                  <span>•</span>
+                                  <span>Triggered by <strong className="text-foreground font-medium">{job.startedByUserName}</strong></span>
+                                </>
+                              )}
+                              {isCompleted && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-emerald-300 font-semibold">{classCount} classes evaluated</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-2.5 shrink-0 flex-wrap md:justify-end">
+                          {isCompleted && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReport(job.analysisId)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/25 transition-all hover:scale-105 active:scale-95 shadow-sm"
+                            >
+                              <Sparkles size={13} className="text-emerald-300" />
+                              <span>View Recommendations</span>
+                            </button>
+                          )}
+
+                          {isRunning && (
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-semibold">
+                              <Loader2 size={13} className="animate-spin" />
+                              <span>Analyzing code AST & SATD...</span>
+                            </div>
+                          )}
+
+                          <a
+                            href={job.repositoryUrl || "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+                          >
+                            GitHub <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
         ) : (
           /* ════════════════════════════════════════════════════════════════
              DEFAULT MY COMPANIES DASHBOARD
@@ -2359,6 +2768,16 @@ export default function UserDashboard() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  openPastAnalysesPage(company);
+                                }}
+                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
+                                title="View past analysis history & reports"
+                              >
+                                <History size={11} /> Past Analyses
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   openInviteModal(company);
                                 }}
                                 className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
@@ -2456,6 +2875,16 @@ export default function UserDashboard() {
                                 className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
                               >
                                 <Play size={10} className="fill-current" /> Analyze
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPastAnalysesPage(company);
+                                }}
+                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
+                                title="View past analysis history"
+                              >
+                                <History size={11} /> Past Analyses
                               </button>
                               <button
                                 onClick={(e) => {
