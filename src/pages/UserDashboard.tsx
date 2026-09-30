@@ -39,8 +39,6 @@ import {
   Maximize2,
   Minimize2,
   Radio,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 
@@ -1467,6 +1465,66 @@ export default function UserDashboard() {
           </div>
         </div>
       </header>
+
+      {/* ── Live WebSocket Notification Toast ── */}
+      {liveToast && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full animate-in slide-in-from-bottom-5 duration-300 shadow-2xl">
+          <div
+            className={`p-4 rounded-2xl border backdrop-blur-md flex flex-col gap-2.5 relative overflow-hidden ${
+              liveToast.type === "success"
+                ? "bg-emerald-950/95 border-emerald-400/40 text-emerald-100 shadow-emerald-950/50"
+                : liveToast.type === "error"
+                ? "bg-red-950/95 border-red-400/40 text-red-100 shadow-red-950/50"
+                : liveToast.type === "info"
+                ? "bg-indigo-950/95 border-indigo-400/40 text-indigo-100 shadow-indigo-950/50"
+                : "bg-amber-950/95 border-amber-400/40 text-amber-100 shadow-amber-950/50"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                {liveToast.type === "success" ? (
+                  <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+                ) : liveToast.type === "error" ? (
+                  <AlertCircle size={18} className="text-red-400 shrink-0" />
+                ) : liveToast.type === "info" ? (
+                  <Activity size={18} className="text-indigo-400 shrink-0 animate-pulse" />
+                ) : (
+                  <Clock size={18} className="text-amber-400 shrink-0" />
+                )}
+                <div>
+                  <h4 className="font-bold text-xs leading-tight tracking-wide">{liveToast.title}</h4>
+                  <span className="text-[10px] opacity-70 flex items-center gap-1 mt-0.5">
+                    <Radio size={9} className="animate-pulse text-emerald-400" />
+                    Live WebSocket • {liveToast.timestamp}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLiveToast(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                title="Dismiss toast"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <p className="text-xs leading-relaxed opacity-90">{liveToast.message}</p>
+            {liveToast.type === "success" && liveToast.analysisId && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (liveToast.analysisId) handleOpenReport(liveToast.analysisId);
+                  setLiveToast(null);
+                }}
+                className="mt-1 self-start inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md hover:scale-105 active:scale-95"
+              >
+                <Sparkles size={13} />
+                <span>View Recommendations</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Main Content ── */}
       <main className="max-w-7xl mx-auto px-6 py-8">
@@ -3052,72 +3110,129 @@ export default function UserDashboard() {
               ))}
             </div>
 
-            {/* ── Two Column Sections ── */}
-            <div className="flex flex-col gap-10">
-
-              {/* ════════════════════════════
-                  COMPANY ADMIN SECTION
-              ════════════════════════════ */}
-              {(activeTab === "all" || activeTab === "admin") && (
-                <section className="dl-company-section dl-scroll w-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#182e46" }}>
-                        <Crown size={15} style={{ color: "#65d8f5" }} />
-                      </div>
-                      <div>
-                        <h2 className="font-semibold text-foreground text-base leading-tight">Company Admin</h2>
-                        <p className="text-xs text-muted-foreground">{filteredAdmin.length} organization{filteredAdmin.length !== 1 ? "s" : ""} you manage as Super Admin</p>
-                      </div>
-                    </div>
+            {/* ── Maximized or Two-Column Views ── */}
+            {maximizedSection === "admin" ? (
+              /* ════════════════════════════════════════════════════════════════
+                 MAXIMIZED COMPANY ADMIN WINDOW
+                 ════════════════════════════════════════════════════════════════ */
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* Window Top Navigation */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
+                  <div className="flex items-center gap-3">
                     <button
-                      onClick={openCreateModal}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity shadow-sm"
-                      style={{ background: "#196bdf" }}
+                      type="button"
+                      onClick={() => setMaximizedSection(null)}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
+                      title="Restore standard dashboard layout"
                     >
-                      <Building2 size={12} />
-                      New Org
+                      <Minimize2 size={14} className="text-cyan-400" /> Restore View
                     </button>
+                    <div className="h-5 w-px bg-border hidden sm:block" />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Dashboard</span>
+                      <ChevronRight size={12} />
+                      <span className="text-cyan-400 font-semibold">Company Admin (Super Admin Workspace)</span>
+                    </div>
                   </div>
 
-                  <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #196bdf, #7C3AED, transparent)" }} />
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      onClick={openCreateModal}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-white px-3.5 py-2 rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
+                      style={{ background: "#196bdf" }}
+                    >
+                      <Building2 size={13} />
+                      <span>Create Company</span>
+                    </button>
+                  </div>
+                </div>
 
-                  {loadingCompanies ? (
-                    <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
-                      <Loader2 className="animate-spin text-primary" size={20} />
-                      <span className="text-sm text-muted-foreground">Loading your companies...</span>
-                    </div>
-                  ) : filteredAdmin.length === 0 ? (
-                    <div className="bg-card rounded-2xl border border-border p-12 text-center">
-                      <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#182e46" }}>
-                        <Crown size={28} style={{ color: "#65d8f5" }} />
+                {/* Maximized Banner */}
+                <div className="p-6 md:p-8 rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/30 via-card to-indigo-950/20 shadow-xl relative overflow-hidden">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+                    <div className="space-y-2 max-w-2xl">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-semibold">
+                        <Crown size={13} />
+                        <span>Super Administrator Organizations</span>
                       </div>
-                      <h3 className="text-base font-semibold text-foreground mb-1">No admin companies yet</h3>
-                      <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
-                        Verify your GitHub organization to import repositories and create your first company.
+                      <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                        Administered Organizations ({filteredAdmin.length})
+                      </h1>
+                      <p className="text-sm text-slate-300 leading-relaxed">
+                        Full window view of all organizations you administer. Trigger automated code metrics analysis, inspect SATD and AST technical debt, invite contributors, and manage organization repositories.
                       </p>
-                      <button
-                        onClick={openCreateModal}
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-white px-4 py-2 rounded-xl transition-all shadow"
-                        style={{ background: "#196bdf" }}
-                      >
-                        <Building2 size={13} />
-                        Register Your Organization
-                      </button>
                     </div>
-                  ) : (
-                    <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {filteredAdmin.map((company) => (
-                        <div
-                          key={company.companyId}
-                          onMouseEnter={() => setHoveredCard(company.companyId)}
-                          onMouseLeave={() => setHoveredCard(null)}
-                          className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200"
-                          style={{
-                            boxShadow: hoveredCard === company.companyId ? "0 8px 30px rgba(67,97,238,0.12)" : "0 1px 4px rgba(0,0,0,0.06)",
-                            transform: hoveredCard === company.companyId ? "translateY(-2px)" : "translateY(0)",
-                          }}
-                        >
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="bg-card/70 backdrop-blur-md p-4 rounded-2xl border border-border text-center min-w-[120px]">
+                        <p className="text-2xl font-bold text-cyan-400">{filteredAdmin.length}</p>
+                        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Organizations</p>
+                      </div>
+                      <div className="bg-card/70 backdrop-blur-md p-4 rounded-2xl border border-border text-center min-w-[120px]">
+                        <p className="text-2xl font-bold text-indigo-400">{totalAdminRepos}</p>
+                        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Repositories</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Search and Quick Actions */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-full sm:w-80 shadow-sm">
+                    <Search size={14} className="text-muted-foreground shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Search admin companies..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none w-full"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery("")} className="text-muted-foreground hover:text-foreground">
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMaximizedSection(null)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-sm"
+                  >
+                    <Minimize2 size={13} />
+                    <span>Exit Full Window</span>
+                  </button>
+                </div>
+
+                {/* Maximized Grid */}
+                {filteredAdmin.length === 0 ? (
+                  <div className="bg-card rounded-2xl border border-border p-16 text-center">
+                    <Crown size={32} className="mx-auto mb-3 text-cyan-400" />
+                    <h3 className="text-base font-bold text-foreground mb-1">No admin organizations match your filter</h3>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-4">
+                      Try adjusting your search terms or create a new organization.
+                    </p>
+                    <button
+                      onClick={openCreateModal}
+                      className="inline-flex items-center gap-2 text-xs font-semibold text-white px-4 py-2 rounded-xl"
+                      style={{ background: "#196bdf" }}
+                    >
+                      <Building2 size={13} /> Create Organization
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                    {filteredAdmin.map((company) => (
+                      <div
+                        key={company.companyId}
+                        onMouseEnter={() => setHoveredCard(company.companyId)}
+                        onMouseLeave={() => setHoveredCard(null)}
+                        className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 flex flex-col justify-between"
+                        style={{
+                          boxShadow: hoveredCard === company.companyId ? "0 8px 30px rgba(67,97,238,0.12)" : "0 1px 4px rgba(0,0,0,0.06)",
+                          transform: hoveredCard === company.companyId ? "translateY(-2px)" : "translateY(0)",
+                        }}
+                      >
+                        <div>
                           {/* Card Top */}
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
@@ -3152,104 +3267,160 @@ export default function UserDashboard() {
                               GitHub Org <ExternalLink size={10} />
                             </a>
                           </div>
+                        </div>
 
-                          {/* Footer */}
-                          <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
-                            <span className="text-xs text-muted-foreground truncate">
-                              Created {company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : ""}
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openAnalysisPage(company, "admin");
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 transition-colors shadow-sm"
-                                title="Open full page analysis workspace"
-                              >
-                                <Play size={10} className="fill-current" /> Analyze
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openPastAnalysesPage(company, "admin");
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
-                                title="View past analysis history & reports"
-                              >
-                                <History size={11} /> Past Analyses
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openInviteModal(company);
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
-                                title="Invite repository contributors"
-                              >
-                                <UserPlus size={12} /> Invite
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openManageModal(company);
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
-                                title="Add more repos to company"
-                              >
-                                <Layers size={12} /> Repos
-                              </button>
-                            </div>
+                        {/* Footer */}
+                        <div className="flex flex-col gap-2 pt-3 border-t border-border">
+                          <span className="text-[11px] text-muted-foreground truncate">
+                            Created {company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : ""}
+                          </span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openAnalysisPage(company, "admin");
+                              }}
+                              className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 transition-colors shadow-sm"
+                              title="Open full page analysis workspace"
+                            >
+                              <Play size={10} className="fill-current" /> Analyze
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPastAnalysesPage(company, "admin");
+                              }}
+                              className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
+                              title="View past analysis history & reports"
+                            >
+                              <History size={11} /> History
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openInviteModal(company);
+                              }}
+                              className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
+                              title="Invite repository contributors"
+                            >
+                              <UserPlus size={12} /> Invite
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openManageModal(company);
+                              }}
+                              className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
+                              title="Add more repos to company"
+                            >
+                              <Layers size={12} /> Repos
+                            </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              )}
-
-              {/* ════════════════════════════
-                  COMPANY MEMBER SECTION
-              ════════════════════════════ */}
-              {(activeTab === "all" || activeTab === "member") && (
-                <section className="dl-company-section dl-scroll w-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#12382e" }}>
-                        <Users size={15} style={{ color: "#10B981" }} />
                       </div>
-                      <div>
-                        <h2 className="font-semibold text-foreground text-base leading-tight">Company Member</h2>
-                        <p className="text-xs text-muted-foreground">{filteredMember.length} organization{filteredMember.length !== 1 ? "s" : ""} you belong to</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : maximizedSection === "member" ? (
+              /* ════════════════════════════════════════════════════════════════
+                 MAXIMIZED COMPANY MEMBER WINDOW
+                 ════════════════════════════════════════════════════════════════ */
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* Window Top Navigation */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setMaximizedSection(null)}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
+                      title="Restore standard dashboard layout"
+                    >
+                      <Minimize2 size={14} className="text-emerald-400" /> Restore View
+                    </button>
+                    <div className="h-5 w-px bg-border hidden sm:block" />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Dashboard</span>
+                      <ChevronRight size={12} />
+                      <span className="text-emerald-400 font-semibold">Company Member (Collaborations Workspace)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Maximized Banner */}
+                <div className="p-6 md:p-8 rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/30 via-card to-teal-950/20 shadow-xl relative overflow-hidden">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+                    <div className="space-y-2 max-w-2xl">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
+                        <Users size={13} />
+                        <span>Member Organizations & Collaborations</span>
+                      </div>
+                      <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                        Member Organizations ({filteredMember.length})
+                      </h1>
+                      <p className="text-sm text-slate-300 leading-relaxed">
+                        Full window view of all organizations and repositories you have been invited to collaborate on. Trigger on-demand code analysis and inspect technical debt metrics.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="bg-card/70 backdrop-blur-md p-4 rounded-2xl border border-border text-center min-w-[120px]">
+                        <p className="text-2xl font-bold text-emerald-400">{filteredMember.length}</p>
+                        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Organizations</p>
+                      </div>
+                      <div className="bg-card/70 backdrop-blur-md p-4 rounded-2xl border border-border text-center min-w-[120px]">
+                        <p className="text-2xl font-bold text-teal-400">{totalMemberRepos}</p>
+                        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Assigned Repos</p>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #10B981, #06B6D4, transparent)" }} />
+                {/* Search and Quick Actions */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-full sm:w-80 shadow-sm">
+                    <Search size={14} className="text-muted-foreground shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Search member companies..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none w-full"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery("")} className="text-muted-foreground hover:text-foreground">
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMaximizedSection(null)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-sm"
+                  >
+                    <Minimize2 size={13} />
+                    <span>Exit Full Window</span>
+                  </button>
+                </div>
 
-                  {loadingMemberCompanies ? (
-                    <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
-                      <Loader2 className="animate-spin text-emerald-300" size={20} />
-                      <span className="text-sm text-muted-foreground">Loading member organizations...</span>
-                    </div>
-                  ) : filteredMember.length === 0 ? (
-                    <div className="bg-card rounded-2xl border border-border p-10 text-center">
-                      <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: "#12382e" }}>
-                        <Users size={24} style={{ color: "#10B981" }} />
-                      </div>
-                      <h3 className="text-sm font-semibold text-foreground mb-1">No member organizations yet</h3>
-                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                        When you accept an invitation to join another organization's repository, it will appear here.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {filteredMember.map((company) => (
-                        <div
-                          key={company.companyId}
-                          onClick={() => openAnalysisPage(company, "member")}
-                          className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25"
-                        >
+                {/* Maximized Grid */}
+                {filteredMember.length === 0 ? (
+                  <div className="bg-card rounded-2xl border border-border p-16 text-center">
+                    <Users size={32} className="mx-auto mb-3 text-emerald-400" />
+                    <h3 className="text-base font-bold text-foreground mb-1">No member organizations match your filter</h3>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      When you accept repository collaboration invitations, they will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                    {filteredMember.map((company) => (
+                      <div
+                        key={company.companyId}
+                        onClick={() => openAnalysisPage(company, "member")}
+                        className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25 flex flex-col justify-between"
+                      >
+                        <div>
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
                               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
@@ -3265,41 +3436,309 @@ export default function UserDashboard() {
                               Member
                             </span>
                           </div>
+                        </div>
 
-                          <div className="flex items-center justify-between pt-3 border-t border-border">
-                            <span className="text-xs font-semibold text-emerald-300">
-                              {company?.totalRepositories || 0} Assigned Repo{(company?.totalRepositories || 0) !== 1 ? "s" : ""}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openAnalysisPage(company, "member");
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
-                              >
-                                <Play size={10} className="fill-current" /> Analyze
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openPastAnalysesPage(company, "member");
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
-                                title="View past analysis history"
-                              >
-                                <History size={11} /> Past Analyses
-                              </button>
-                            </div>
+                        <div className="flex items-center justify-between pt-3 border-t border-border">
+                          <span className="text-xs font-semibold text-emerald-300">
+                            {company?.totalRepositories || 0} Assigned Repo{(company?.totalRepositories || 0) !== 1 ? "s" : ""}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openAnalysisPage(company, "member");
+                              }}
+                              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
+                            >
+                              <Play size={10} className="fill-current" /> Analyze
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPastAnalysesPage(company, "member");
+                              }}
+                              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
+                              title="View past analysis history"
+                            >
+                              <History size={11} /> Past Analyses
+                            </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* ════════════════════════════════════════════════════════════════
+                 STANDARD TWO-COLUMN DASHBOARD SECTIONS
+                 ════════════════════════════════════════════════════════════════ */
+              <div className="flex flex-col gap-10">
 
-            </div>
+                {/* ════════════════════════════
+                    COMPANY ADMIN SECTION
+                ════════════════════════════ */}
+                {(activeTab === "all" || activeTab === "admin") && (
+                  <section className="dl-company-section dl-scroll w-full">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#182e46" }}>
+                          <Crown size={15} style={{ color: "#65d8f5" }} />
+                        </div>
+                        <div>
+                          <h2 className="font-semibold text-foreground text-base leading-tight">Company Admin</h2>
+                          <p className="text-xs text-muted-foreground">{filteredAdmin.length} organization{filteredAdmin.length !== 1 ? "s" : ""} you manage as Super Admin</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setMaximizedSection("admin")}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all shadow-sm"
+                          title="Maximize Company Admin window to full width"
+                        >
+                          <Maximize2 size={12} className="text-cyan-400" />
+                          <span>Maximize</span>
+                        </button>
+                        <button
+                          onClick={openCreateModal}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                          style={{ background: "#196bdf" }}
+                        >
+                          <Building2 size={12} />
+                          New Org
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #196bdf, #7C3AED, transparent)" }} />
+
+                    {loadingCompanies ? (
+                      <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
+                        <Loader2 className="animate-spin text-primary" size={20} />
+                        <span className="text-sm text-muted-foreground">Loading your companies...</span>
+                      </div>
+                    ) : filteredAdmin.length === 0 ? (
+                      <div className="bg-card rounded-2xl border border-border p-12 text-center">
+                        <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#182e46" }}>
+                          <Crown size={28} style={{ color: "#65d8f5" }} />
+                        </div>
+                        <h3 className="text-base font-semibold text-foreground mb-1">No admin companies yet</h3>
+                        <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
+                          Verify your GitHub organization to import repositories and create your first company.
+                        </p>
+                        <button
+                          onClick={openCreateModal}
+                          className="inline-flex items-center gap-2 text-xs font-semibold text-white px-4 py-2 rounded-xl transition-all shadow"
+                          style={{ background: "#196bdf" }}
+                        >
+                          <Building2 size={13} />
+                          Register Your Organization
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {filteredAdmin.map((company) => (
+                          <div
+                            key={company.companyId}
+                            onMouseEnter={() => setHoveredCard(company.companyId)}
+                            onMouseLeave={() => setHoveredCard(null)}
+                            className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200"
+                            style={{
+                              boxShadow: hoveredCard === company.companyId ? "0 8px 30px rgba(67,97,238,0.12)" : "0 1px 4px rgba(0,0,0,0.06)",
+                              transform: hoveredCard === company.companyId ? "translateY(-2px)" : "translateY(0)",
+                            }}
+                          >
+                            {/* Card Top */}
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
+                                  {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
+                                  <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
+                                <Crown size={10} />
+                                Super Admin
+                              </span>
+                            </div>
+
+                            {/* Repos count & link */}
+                            <div className="bg-muted rounded-xl p-3 mb-4 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <GitBranch size={14} style={{ color: "#65d8f5" }} />
+                                <span className="text-xs font-semibold text-foreground">{company?.totalRepositories || 0} Repositories</span>
+                              </div>
+                              <a
+                                href={company?.githubOrganizationUrl || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] font-medium hover:underline flex items-center gap-1"
+                                style={{ color: "#65d8f5" }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                GitHub Org <ExternalLink size={10} />
+                              </a>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
+                              <span className="text-xs text-muted-foreground truncate">
+                                Created {company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : ""}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openAnalysisPage(company, "admin");
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 transition-colors shadow-sm"
+                                  title="Open full page analysis workspace"
+                                >
+                                  <Play size={10} className="fill-current" /> Analyze
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openPastAnalysesPage(company, "admin");
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
+                                  title="View past analysis history & reports"
+                                >
+                                  <History size={11} /> Past Analyses
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openInviteModal(company);
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
+                                  title="Invite repository contributors"
+                                >
+                                  <UserPlus size={12} /> Invite
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openManageModal(company);
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
+                                  title="Add more repos to company"
+                                >
+                                  <Layers size={12} /> Repos
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* ════════════════════════════
+                    COMPANY MEMBER SECTION
+                ════════════════════════════ */}
+                {(activeTab === "all" || activeTab === "member") && (
+                  <section className="dl-company-section dl-scroll w-full">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#12382e" }}>
+                          <Users size={15} style={{ color: "#10B981" }} />
+                        </div>
+                        <div>
+                          <h2 className="font-semibold text-foreground text-base leading-tight">Company Member</h2>
+                          <p className="text-xs text-muted-foreground">{filteredMember.length} organization{filteredMember.length !== 1 ? "s" : ""} you belong to</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setMaximizedSection("member")}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all shadow-sm"
+                        title="Maximize Company Member window to full width"
+                      >
+                        <Maximize2 size={12} className="text-emerald-400" />
+                        <span>Maximize</span>
+                      </button>
+                    </div>
+
+                    <div className="h-0.5 rounded-full mb-5" style={{ background: "linear-gradient(to right, #10B981, #06B6D4, transparent)" }} />
+
+                    {loadingMemberCompanies ? (
+                      <div className="bg-card rounded-xl border border-border p-10 text-center flex items-center justify-center gap-2">
+                        <Loader2 className="animate-spin text-emerald-300" size={20} />
+                        <span className="text-sm text-muted-foreground">Loading member organizations...</span>
+                      </div>
+                    ) : filteredMember.length === 0 ? (
+                      <div className="bg-card rounded-2xl border border-border p-10 text-center">
+                        <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: "#12382e" }}>
+                          <Users size={24} style={{ color: "#10B981" }} />
+                        </div>
+                        <h3 className="text-sm font-semibold text-foreground mb-1">No member organizations yet</h3>
+                        <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                          When you accept an invitation to join another organization's repository, it will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="dl-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {filteredMember.map((company) => (
+                          <div
+                            key={company.companyId}
+                            onClick={() => openAnalysisPage(company, "member")}
+                            className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25"
+                          >
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
+                                  {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
+                                  <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
+                                <UserCheck size={10} />
+                                Member
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-border">
+                              <span className="text-xs font-semibold text-emerald-300">
+                                {company?.totalRepositories || 0} Assigned Repo{(company?.totalRepositories || 0) !== 1 ? "s" : ""}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openAnalysisPage(company, "member");
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
+                                >
+                                  <Play size={10} className="fill-current" /> Analyze
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openPastAnalysesPage(company, "member");
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
+                                  title="View past analysis history"
+                                >
+                                  <History size={11} /> Past Analyses
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+              </div>
+            )}
           </>
         )}
       </main>
