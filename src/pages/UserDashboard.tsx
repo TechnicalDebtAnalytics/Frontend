@@ -666,6 +666,7 @@ export default function UserDashboard() {
     let ws: WebSocket | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     let isUnmounted = false;
+    let retryDelay = 5000;
 
     const connectWebSocket = () => {
       if (isUnmounted) return;
@@ -683,6 +684,7 @@ export default function UserDashboard() {
         ws.onopen = () => {
           if (!isUnmounted) {
             setWsConnected(true);
+            retryDelay = 5000; // Reset retry delay on successful connection
             console.log("[WebSocket] Connected to analysis progress feed:", wsUrl);
           }
         };
@@ -777,14 +779,18 @@ export default function UserDashboard() {
         ws.onclose = () => {
           if (!isUnmounted) {
             setWsConnected(false);
-            // Auto reconnect after 3.5 seconds
-            reconnectTimeout = setTimeout(connectWebSocket, 3500);
+            // Exponential backoff retry (up to 60s)
+            const currentDelay = retryDelay;
+            retryDelay = Math.min(retryDelay * 1.5, 60000);
+            reconnectTimeout = setTimeout(connectWebSocket, currentDelay);
           }
         };
       } catch {
         if (!isUnmounted) {
           setWsConnected(false);
-          reconnectTimeout = setTimeout(connectWebSocket, 5000);
+          const currentDelay = retryDelay;
+          retryDelay = Math.min(retryDelay * 1.5, 60000);
+          reconnectTimeout = setTimeout(connectWebSocket, currentDelay);
         }
       }
     };
