@@ -246,18 +246,18 @@ export default function SystemAdminCompanies({ onSelectCompany }: SystemAdminCom
                   <td>
                     <div className="company-name-cell">
                       <div className="company-avatar">
-                        {company.companyName
+                        {(company?.companyName || 'C')
                           .charAt(0)
                           .toUpperCase()}
                       </div>
-                      <span>{company.companyName}</span>
+                      <span>{company?.companyName || 'Unknown Company'}</span>
                     </div>
                   </td>
 
                   <td>
                     <span className="org-badge">
                       {extractOrgName(
-                        company.githubOrganizationUrl
+                        company?.githubOrganizationUrl
                       )}
                     </span>
                   </td>
