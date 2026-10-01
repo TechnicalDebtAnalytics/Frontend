@@ -7,6 +7,7 @@ import SystemAdminDashboard from './pages/SystemAdminDashboard'
 
 type Page = 'login' | 'register'
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 const ROLE_CLAIM = 'https://debtlens.example.com/roles'
 
 export default function App() {

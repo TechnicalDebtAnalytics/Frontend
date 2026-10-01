@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Activity, Bell, Building2, GitBranch, LayoutDashboard, Search, Settings, Shield, Users } from 'lucide-react'
+import { API_BASE_URL } from '../config/api'
 import SystemAdminCompanies from './SystemAdminCompanies'
 import type { AdminCompany } from './SystemAdminCompanies'
 import SystemAdminCompanyDetails from './SystemAdminCompanyDetails'
@@ -90,7 +91,7 @@ export default function SystemAdminDashboard() {
   const loadHealth = async () => {
     try {
       const token = await getAccessTokenSilently()
-      const response = await fetch('http://localhost:8080/api/admin/health', {
+      const response = await fetch(`${API_BASE_URL}/admin/health`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -119,7 +120,7 @@ export default function SystemAdminDashboard() {
         const token = await getAccessTokenSilently()
 
         const response = await fetch(
-          'http://localhost:8080/api/admin/stats',
+          `${API_BASE_URL}/admin/stats`,
           {
             method: 'GET',
             headers: {
