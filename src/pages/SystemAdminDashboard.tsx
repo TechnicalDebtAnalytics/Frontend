@@ -27,18 +27,64 @@ export interface SystemHealth {
 export default function SystemAdminDashboard() {
   const { getAccessTokenSilently } = useAuth0()
 
-  const [activePage, setActivePage] = useState<AdminPage>('dashboard')
-  const [selectedCompany, setSelectedCompany] = useState<AdminCompany | null>(null)
+  const [activePage, setActivePage] = useState<AdminPage>(() => {
+    try {
+      const saved = sessionStorage.getItem('debtlens_admin_active_page')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.activePage) return parsed.activePage
+      }
+    } catch { }
+    return 'dashboard'
+  })
 
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalCompanies: 0,
-    totalRepositories: 0,
-    totalAnalysisJobs: 0,
+  const [selectedCompany, setSelectedCompany] = useState<AdminCompany | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('debtlens_admin_active_page')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.selectedCompany) return parsed.selectedCompany
+      }
+    } catch { }
+    return null
+  })
+
+  const handleNavigatePage = (page: AdminPage) => {
+    setActivePage(page)
+    setSelectedCompany(null)
+    try {
+      sessionStorage.setItem('debtlens_admin_active_page', JSON.stringify({ activePage: page, selectedCompany: null }))
+    } catch { }
+  }
+
+  const handleSelectCompany = (company: AdminCompany | null) => {
+    setSelectedCompany(company)
+    try {
+      sessionStorage.setItem('debtlens_admin_active_page', JSON.stringify({ activePage: 'companies', selectedCompany: company }))
+    } catch { }
+  }
+
+  const [stats, setStats] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('debtlens_admin_cached_stats')
+      if (saved) return JSON.parse(saved)
+    } catch { }
+    return {
+      totalUsers: 0,
+      totalCompanies: 0,
+      totalRepositories: 0,
+      totalAnalysisJobs: 0,
+    }
   })
 
   const [statsLoading, setStatsLoading] = useState(true)
-  const [health, setHealth] = useState<SystemHealth | null>(null)
+  const [health, setHealth] = useState<SystemHealth | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('debtlens_admin_cached_health')
+      if (saved) return JSON.parse(saved)
+    } catch { }
+    return null
+  })
   const [healthLoading, setHealthLoading] = useState(true)
 
   const loadHealth = async () => {
@@ -57,6 +103,9 @@ export default function SystemAdminDashboard() {
       const data: SystemHealth = await response.json()
       console.log('ADMIN DASHBOARD HEALTH:', data)
       setHealth(data)
+      try {
+        sessionStorage.setItem('debtlens_admin_cached_health', JSON.stringify(data))
+      } catch { }
     } catch (error) {
       console.error('Failed to load system health:', error)
     } finally {
@@ -91,6 +140,9 @@ export default function SystemAdminDashboard() {
         console.log('ADMIN DASHBOARD STATS:', data)
 
         setStats(data)
+        try {
+          sessionStorage.setItem('debtlens_admin_cached_stats', JSON.stringify(data))
+        } catch { }
       } catch (error) {
         console.error(
           'Failed to load admin dashboard statistics:',
@@ -136,7 +188,7 @@ export default function SystemAdminDashboard() {
           <button
             className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
             aria-current={activePage === 'dashboard' ? 'page' : undefined}
-            onClick={() => setActivePage('dashboard')}
+            onClick={() => handleNavigatePage('dashboard')}
           >
             <span className="nav-icon"><LayoutDashboard size={18} aria-hidden="true" /></span>
             <span>Dashboard</span>
@@ -145,10 +197,7 @@ export default function SystemAdminDashboard() {
           <button
             className={`nav-item ${activePage === 'companies' ? 'active' : ''}`}
             aria-current={activePage === 'companies' ? 'page' : undefined}
-            onClick={() => {
-              setActivePage('companies')
-              setSelectedCompany(null)
-            }}
+            onClick={() => handleNavigatePage('companies')}
           >
             <span className="nav-icon"><Building2 size={18} aria-hidden="true" /></span>
             <span>Companies</span>
@@ -157,7 +206,7 @@ export default function SystemAdminDashboard() {
           <button
             className={`nav-item ${activePage === 'users' ? 'active' : ''}`}
             aria-current={activePage === 'users' ? 'page' : undefined}
-            onClick={() => setActivePage('users')}
+            onClick={() => handleNavigatePage('users')}
           >
             <span className="nav-icon"><Users size={18} aria-hidden="true" /></span>
             <span>Users</span>
@@ -166,7 +215,7 @@ export default function SystemAdminDashboard() {
           <button
             className={`nav-item ${activePage === 'jobs' ? 'active' : ''}`}
             aria-current={activePage === 'jobs' ? 'page' : undefined}
-            onClick={() => setActivePage('jobs')}
+            onClick={() => handleNavigatePage('jobs')}
           >
             <span className="nav-icon"><Activity size={18} aria-hidden="true" /></span>
             <span>Analysis Jobs</span>
@@ -254,11 +303,11 @@ export default function SystemAdminDashboard() {
               <SystemAdminCompanyDetails
                 companyId={selectedCompany.companyId}
                 initialCompanyData={selectedCompany}
-                onBack={() => setSelectedCompany(null)}
+                onBack={() => handleSelectCompany(null)}
               />
             ) : (
               <SystemAdminCompanies
-                onSelectCompany={(company) => setSelectedCompany(company)}
+                onSelectCompany={(company) => handleSelectCompany(company)}
               />
             )}
           </section>

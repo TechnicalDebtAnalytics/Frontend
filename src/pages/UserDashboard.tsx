@@ -179,9 +179,21 @@ export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState<"all" | "admin" | "member">("all");
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
 
-  // Live admin companies from backend
-  const [adminCompaniesList, setAdminCompaniesList] = useState<CompanyAdminItem[]>([]);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  // Live admin companies from backend (with Fast Session Cache for 0ms initial load)
+  const [adminCompaniesList, setAdminCompaniesList] = useState<CompanyAdminItem[]>(() => {
+    try {
+      const saved = sessionStorage.getItem("debtlens_cached_admin_companies");
+      if (saved) return JSON.parse(saved);
+    } catch { }
+    return [];
+  });
+  const [loadingCompanies, setLoadingCompanies] = useState(() => {
+    try {
+      return !sessionStorage.getItem("debtlens_cached_admin_companies");
+    } catch {
+      return true;
+    }
+  });
 
   // ── Create Company Modal State ──
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -242,7 +254,13 @@ export default function UserDashboard() {
   // ── My Pending Invitations & Member Companies State ──
   const [myPendingInvitations, setMyPendingInvitations] = useState<InvitationResponse[]>([]);
   const [processingInvitationId, setProcessingInvitationId] = useState<number | null>(null);
-  const [memberCompaniesList, setMemberCompaniesList] = useState<CompanyAdminItem[]>([]);
+  const [memberCompaniesList, setMemberCompaniesList] = useState<CompanyAdminItem[]>(() => {
+    try {
+      const saved = sessionStorage.getItem("debtlens_cached_member_companies");
+      if (saved) return JSON.parse(saved);
+    } catch { }
+    return [];
+  });
   const [loadingMemberCompanies, setLoadingMemberCompanies] = useState(false);
   const [invitationActionMsg, setInvitationActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -284,6 +302,7 @@ export default function UserDashboard() {
   const companyReposCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; timestamp: number }>>({});
   const companyPastAnalysesCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; analysisList: PastAnalysisJob[]; timestamp: number }>>({});
   const companyAnalysisWorkspaceCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; statusMap: Record<number, any>; timestamp: number }>>({});
+  const reportsCacheRef = useRef<Record<number, TechnicalDebtReport>>({});
 
   // 10-Minute Results Retention Window for Completed Analyses
   const TEN_MINUTES_MS = 10 * 60 * 1000;
@@ -382,7 +401,11 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/my-admin`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setAdminCompaniesList(Array.isArray(data) ? data.filter(Boolean) : []);
+        const valid = Array.isArray(data) ? data.filter(Boolean) : [];
+        setAdminCompaniesList(valid);
+        try {
+          sessionStorage.setItem("debtlens_cached_admin_companies", JSON.stringify(valid));
+        } catch { }
       }
     } catch (err) {
       console.warn("Could not fetch admin companies:", err);
@@ -427,7 +450,11 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/my-member`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setMemberCompaniesList(Array.isArray(data) ? data.filter(Boolean) : []);
+        const valid = Array.isArray(data) ? data.filter(Boolean) : [];
+        setMemberCompaniesList(valid);
+        try {
+          sessionStorage.setItem("debtlens_cached_member_companies", JSON.stringify(valid));
+        } catch { }
       }
     } catch (err) {
       console.warn("Could not fetch member companies:", err);
@@ -522,6 +549,7 @@ export default function UserDashboard() {
 
     try {
       sessionStorage.setItem("debtlens_active_analysis_company", JSON.stringify({ company, role }));
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "analysis", company, role }));
     } catch { }
 
     // 0ms Instant Loading from Fast In-Memory Cache if available
@@ -643,6 +671,7 @@ export default function UserDashboard() {
     setAnalysisRepoSearch("");
     try {
       sessionStorage.removeItem("debtlens_active_analysis_company");
+      sessionStorage.removeItem("debtlens_active_user_view");
     } catch { }
   };
 
@@ -654,6 +683,10 @@ export default function UserDashboard() {
     setPastAnalysesSearch("");
     setSelectedPastRepoId(initialRepoId ?? "ALL");
     setPastAnalysesStatusFilter("ALL");
+
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "pastAnalyses", company, role, initialRepoId }));
+    } catch { }
 
     // 0ms Instant Loading from Fast In-Memory Cache if available
     const cached = companyPastAnalysesCacheRef.current[company.companyId];
@@ -723,6 +756,9 @@ export default function UserDashboard() {
     setPastAnalysesRepos([]);
     setSelectedPastRepoId("ALL");
     setPastAnalysesError("");
+    try {
+      sessionStorage.removeItem("debtlens_active_user_view");
+    } catch { }
   };
 
   // Trigger analysis for a repository via RabbitMQ
@@ -871,9 +907,21 @@ export default function UserDashboard() {
 
   const handleOpenReport = async (analysisId: number) => {
     setSelectedReportAnalysisId(analysisId);
-    setLoadingReport(true);
     setReportError("");
-    setActiveReport(null);
+
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "report", analysisId }));
+    } catch { }
+
+    // 0ms Instant Loading from Fast Reports Cache if available
+    const cachedReport = reportsCacheRef.current[analysisId];
+    if (cachedReport) {
+      setActiveReport(cachedReport);
+      setLoadingReport(false);
+    } else {
+      setActiveReport(null);
+      setLoadingReport(true);
+    }
 
     try {
       let token = "";
@@ -891,12 +939,29 @@ export default function UserDashboard() {
       }
 
       const data: TechnicalDebtReport = await res.json();
+      reportsCacheRef.current[analysisId] = data;
       setActiveReport(data);
     } catch (err: any) {
-      setReportError(err.message || "Failed to load report");
+      if (!cachedReport) {
+        setReportError(err.message || "Failed to load report");
+      }
     } finally {
       setLoadingReport(false);
     }
+  };
+
+  const closeReport = () => {
+    setSelectedReportAnalysisId(null);
+    setActiveReport(null);
+    try {
+      if (analysisPageCompany) {
+        sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "analysis", company: analysisPageCompany, role: analysisPageRole }));
+      } else if (pastAnalysesCompany) {
+        sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "pastAnalyses", company: pastAnalysesCompany, role: pastAnalysesRole, initialRepoId: selectedPastRepoId }));
+      } else {
+        sessionStorage.removeItem("debtlens_active_user_view");
+      }
+    } catch { }
   };
 
   useEffect(() => {
@@ -905,13 +970,23 @@ export default function UserDashboard() {
       fetchMyPendingInvitations();
       fetchMemberCompanies();
 
-      // Automatically restore active analysis workspace if user refreshed the page
+      // Automatically restore whatever exact page / view / modal the user was on before refresh
       try {
-        const savedAnalysis = sessionStorage.getItem("debtlens_active_analysis_company");
-        if (savedAnalysis) {
-          const { company, role } = JSON.parse(savedAnalysis);
-          if (company && company.companyId) {
-            openAnalysisPage(company, role || "admin");
+        const savedViewStr = sessionStorage.getItem("debtlens_active_user_view");
+        if (savedViewStr) {
+          const savedView = JSON.parse(savedViewStr);
+          if (savedView.type === "analysis" && savedView.company) {
+            openAnalysisPage(savedView.company, savedView.role || "admin");
+          } else if (savedView.type === "pastAnalyses" && savedView.company) {
+            openPastAnalysesPage(savedView.company, savedView.role || "admin", savedView.initialRepoId);
+          } else if (savedView.type === "report" && savedView.analysisId) {
+            handleOpenReport(savedView.analysisId);
+          } else if (savedView.type === "invite" && savedView.company) {
+            openInviteModal(savedView.company);
+          } else if (savedView.type === "manage" && savedView.company) {
+            openManageModal(savedView.company);
+          } else if (savedView.type === "create") {
+            openCreateModal();
           }
         }
       } catch { }
@@ -1116,6 +1191,9 @@ export default function UserDashboard() {
   // ── Create Modal Actions ──
   const openCreateModal = () => {
     setIsModalOpen(true);
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "create" }));
+    } catch { }
     setStep(1);
     setOrgInput("");
     setOrgError("");
@@ -1132,6 +1210,9 @@ export default function UserDashboard() {
 
   const closeCreateModal = () => {
     setIsModalOpen(false);
+    try {
+      sessionStorage.removeItem("debtlens_active_user_view");
+    } catch { }
   };
 
   // Helper: Extract organization login slug STRICTLY from a GitHub URL
@@ -1366,6 +1447,9 @@ export default function UserDashboard() {
   // ── Manage Existing Company Repositories ──
   const openManageModal = async (company: CompanyAdminItem) => {
     setManageCompany(company);
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "manage", company }));
+    } catch { }
     setNewlySelectedRepoIds([]);
     setAddReposError("");
     setAddReposSuccess(false);
@@ -1454,6 +1538,9 @@ export default function UserDashboard() {
 
       setTimeout(() => {
         setManageCompany(null);
+        try {
+          sessionStorage.removeItem("debtlens_active_user_view");
+        } catch { }
       }, 1200);
     } catch (err: any) {
       setAddReposError(err.message || "Failed to add repositories");
@@ -1465,6 +1552,9 @@ export default function UserDashboard() {
   // ── Invite Contributors Modal Actions (with Instant 0ms SWR Caching) ──
   const openInviteModal = async (company: CompanyAdminItem) => {
     setInviteCompany(company);
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "invite", company }));
+    } catch { }
     setSelectedRepoForInvite(null);
     setRepoContributorsList([]);
     setExistingInvitations([]);
@@ -2204,7 +2294,12 @@ export default function UserDashboard() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setManageCompany(null)}
+                  onClick={() => {
+                    setManageCompany(null);
+                    try {
+                      sessionStorage.removeItem("debtlens_active_user_view");
+                    } catch { }
+                  }}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
                 >
                   <ArrowLeft size={14} /> Back to Companies
@@ -2475,7 +2570,12 @@ export default function UserDashboard() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setInviteCompany(null)}
+                  onClick={() => {
+                    setInviteCompany(null);
+                    try {
+                      sessionStorage.removeItem("debtlens_active_user_view");
+                    } catch { }
+                  }}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
                 >
                   <ArrowLeft size={14} /> Back to Companies
@@ -4491,7 +4591,7 @@ export default function UserDashboard() {
               <button
                 type="button"
                 aria-label="Close report"
-                onClick={() => setSelectedReportAnalysisId(null)}
+                onClick={closeReport}
                 className="p-2 rounded-xl hover:bg-white/10 text-indigo-200 hover:text-white transition-colors"
               >
                 <X size={18} />
@@ -4817,7 +4917,7 @@ export default function UserDashboard() {
               <button
                 type="button"
                 aria-label="Close report"
-                onClick={() => setSelectedReportAnalysisId(null)}
+                onClick={closeReport}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
               >
                 Close Report
