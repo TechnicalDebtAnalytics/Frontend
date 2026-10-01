@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import { API_BASE_URL } from '../config/api'
 
 export interface AdminCompany {
   companyId: number
@@ -31,7 +32,7 @@ export default function SystemAdminCompanies({ onSelectCompany }: SystemAdminCom
         const token = await getAccessTokenSilently()
 
         const response = await fetch(
-          'http://localhost:8080/api/admin/companies',
+          `${API_BASE_URL}/admin/companies`,
           {
             method: 'GET',
             headers: {
