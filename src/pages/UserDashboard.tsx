@@ -4053,10 +4053,43 @@ export default function UserDashboard() {
                               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
                                 {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
                               </div>
-                              <div>
-                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
-                              </div>
+                                                              <div>
+                                  <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                    {company?.githubInstallationId ? (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                        <Check size={9} /> App Connected
+                                      </span>
+                                    ) : installationIdFromUrl ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                        }}
+                                        disabled={linkingInstallation}
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
+                                        title="Click to link newly installed GitHub App"
+                                      >
+                                        {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                        Link App
+                                      </button>
+                                    ) : (
+                                      <a
+                                        href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
+                                        title="Connect GitHub App to this organization for dedicated rate limits"
+                                      >
+                                        <Sparkles size={10} className="text-indigo-400" />
+                                        <span>Connect App</span>
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
                             </div>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
                               <UserCheck size={10} />
@@ -4181,9 +4214,42 @@ export default function UserDashboard() {
                                 <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
                                   {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
                                 </div>
-                                <div>
+                                                                <div>
                                   <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                  <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                    {company?.githubInstallationId ? (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                        <Check size={9} /> App Connected
+                                      </span>
+                                    ) : installationIdFromUrl ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                        }}
+                                        disabled={linkingInstallation}
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
+                                        title="Click to link newly installed GitHub App"
+                                      >
+                                        {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                        Link App
+                                      </button>
+                                    ) : (
+                                      <a
+                                        href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
+                                        title="Connect GitHub App to this organization for dedicated rate limits"
+                                      >
+                                        <Sparkles size={10} className="text-indigo-400" />
+                                        <span>Connect App</span>
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
@@ -4320,9 +4386,42 @@ export default function UserDashboard() {
                                 <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
                                   {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
                                 </div>
-                                <div>
+                                                                <div>
                                   <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                  <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                    {company?.githubInstallationId ? (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                        <Check size={9} /> App Connected
+                                      </span>
+                                    ) : installationIdFromUrl ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                        }}
+                                        disabled={linkingInstallation}
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
+                                        title="Click to link newly installed GitHub App"
+                                      >
+                                        {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                        Link App
+                                      </button>
+                                    ) : (
+                                      <a
+                                        href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
+                                        title="Connect GitHub App to this organization for dedicated rate limits"
+                                      >
+                                        <Sparkles size={10} className="text-indigo-400" />
+                                        <span>Connect App</span>
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
