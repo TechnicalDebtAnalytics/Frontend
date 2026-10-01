@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import { API_BASE_URL } from '../config/api'
 
 interface AdminUser {
   userId: number
@@ -28,7 +29,7 @@ export default function SystemAdminUsers() {
         const token = await getAccessTokenSilently()
 
         const response = await fetch(
-          'http://localhost:8080/api/admin/users',
+          `${API_BASE_URL}/admin/users`,
           {
             method: 'GET',
             headers: {

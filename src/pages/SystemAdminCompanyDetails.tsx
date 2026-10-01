@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import { API_BASE_URL } from '../config/api'
 
 export interface AdminCompanySummary {
   companyId: number
@@ -114,7 +115,7 @@ export default function SystemAdminCompanyDetails({
 
         // Fetch Company Details from GET /api/companies/{companyId}
         const companyRes = await fetch(
-          `http://localhost:8080/api/companies/${companyId}`,
+          `${API_BASE_URL}/companies/${companyId}`,
           {
             method: 'GET',
             headers: {
@@ -142,7 +143,7 @@ export default function SystemAdminCompanyDetails({
         // Fetch Repositories from GET /api/companies/{companyId}/repositories
         try {
           const reposRes = await fetch(
-            `http://localhost:8080/api/companies/${companyId}/repositories`,
+            `${API_BASE_URL}/companies/${companyId}/repositories`,
             {
               method: 'GET',
               headers: {
@@ -199,7 +200,7 @@ export default function SystemAdminCompanyDetails({
       try {
         const token = await getAccessTokenSilently()
         const res = await fetch(
-          `http://localhost:8080/api/admin/companies/${companyId}/users`,
+          `${API_BASE_URL}/admin/companies/${companyId}/users`,
           {
             method: 'GET',
             headers: {
@@ -250,7 +251,7 @@ export default function SystemAdminCompanyDetails({
       try {
         const token = await getAccessTokenSilently()
         const res = await fetch(
-          `http://localhost:8080/api/admin/companies/${companyId}/analysis-jobs`,
+          `${API_BASE_URL}/admin/companies/${companyId}/analysis-jobs`,
           {
             method: 'GET',
             headers: {
