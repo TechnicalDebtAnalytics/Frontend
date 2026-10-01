@@ -122,6 +122,7 @@ interface CompanyAdminItem {
   companyName: string;
   githubOrganizationName: string;
   githubOrganizationUrl: string;
+  githubInstallationId?: number | null;
   totalRepositories: number;
   repositories?: {
     repositoryId: number;
@@ -227,6 +228,11 @@ export default function UserDashboard() {
   const [creatingCompany, setCreatingCompany] = useState(false);
   const [creationError, setCreationError] = useState("");
   const [creationSuccess, setCreationSuccess] = useState(false);
+
+  // ── GitHub App Integration State ──
+  const [appInfo, setAppInfo] = useState<{ configured: boolean; appSlug: string; installUrl: string } | null>(null);
+  const [installationIdFromUrl, setInstallationIdFromUrl] = useState<number | null>(null);
+  const [linkingInstallation, setLinkingInstallation] = useState(false);
 
   // ── Manage Company Repositories Modal State ──
   const [manageCompany, setManageCompany] = useState<CompanyAdminItem | null>(null);
@@ -355,6 +361,30 @@ export default function UserDashboard() {
       setCurrentTime(Date.now());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const instIdStr = params.get("installation_id");
+      if (instIdStr && !isNaN(Number(instIdStr))) {
+        const id = Number(instIdStr);
+        setInstallationIdFromUrl(id);
+      }
+    } catch { }
+
+    const checkAppInfo = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/github/app/info`);
+        if (res.ok) {
+          const data = await res.json();
+          setAppInfo(data);
+        }
+      } catch (err) {
+        console.debug("Could not fetch github app info", err);
+      }
+    };
+    checkAppInfo();
   }, []);
 
   // ── Technical Debt Report & Recommendations Modal State ──
@@ -1259,7 +1289,8 @@ export default function UserDashboard() {
       }
 
       // 1. Check organization info
-      const orgRes = await fetch(`${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}`, { headers });
+      const queryParam = installationIdFromUrl ? `?installationId=${installationIdFromUrl}` : "";
+      const orgRes = await fetch(`${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}${queryParam}`, { headers });
       if (!orgRes.ok) {
         const errData = await orgRes.json().catch(() => ({}));
         throw new Error(errData.message || `GitHub Organization '${orgSlug}' not found`);
@@ -1268,7 +1299,7 @@ export default function UserDashboard() {
 
       // 2. Validate user membership in this org
       const memberRes = await fetch(
-        `${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}/validate-my-membership`,
+        `${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}/validate-my-membership${queryParam}`,
         { headers }
       );
 
@@ -1292,7 +1323,7 @@ export default function UserDashboard() {
       setCompanyNameInput(orgData.name || orgData.login);
 
       // Load repos for step 2
-      fetchOrgRepos(orgData.login, token);
+      fetchOrgRepos(orgData.login, token, installationIdFromUrl || undefined);
       setStep(2);
     } catch (err: any) {
       setOrgError(err.message || "Failed to verify organization. Please check the organization URL and try again.");
@@ -1302,14 +1333,15 @@ export default function UserDashboard() {
   };
 
   // Step 2: Fetch Org Repositories
-  const fetchOrgRepos = async (orgName: string, token?: string) => {
+  const fetchOrgRepos = async (orgName: string, token?: string, instId?: number) => {
     setLoadingRepos(true);
     try {
       const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const res = await fetch(`${API_BASE_URL}/github/orgs/${orgName}/repos`, { headers });
+      const queryParam = instId ? `?installationId=${instId}` : "";
+      const res = await fetch(`${API_BASE_URL}/github/orgs/${orgName}/repos${queryParam}`, { headers });
       if (res.ok) {
         const repos: GithubRepo[] = await res.json();
         setAvailableRepos(repos);
@@ -1327,7 +1359,7 @@ export default function UserDashboard() {
   };
 
   // Step 2: Fetch Contributors for a specific repo
-  const handleInspectContributors = async (orgLogin: string, repoName: string) => {
+  const handleInspectContributors = async (orgLogin: string, repoName: string, instId?: number) => {
     if (activeRepoForContributors === repoName) {
       setActiveRepoForContributors(null);
       return;
@@ -1348,9 +1380,11 @@ export default function UserDashboard() {
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
+      const effectiveInstId = instId || installationIdFromUrl;
+      const queryParam = effectiveInstId ? `?installationId=${effectiveInstId}` : "";
 
       const res = await fetch(
-        `${API_BASE_URL}/github/repos/${orgLogin}/${repoName}/contributors`,
+        `${API_BASE_URL}/github/repos/${orgLogin}/${repoName}/contributors${queryParam}`,
         { headers }
       );
 
@@ -1415,6 +1449,7 @@ export default function UserDashboard() {
         companyName: companyNameInput.trim(),
         githubOrganizationName: verifiedOrg!.login,
         selectedRepositories: selectedReposPayload,
+        githubInstallationId: installationIdFromUrl || undefined,
       };
 
       const res = await fetch(`${API_BASE_URL}/companies`, {
@@ -1474,6 +1509,39 @@ export default function UserDashboard() {
       console.error("Failed to load company available repos:", err);
     } finally {
       setLoadingCompanyRepos(false);
+    }
+  };
+
+  const handleLinkInstallation = async (companyId: number, instId: number) => {
+    setLinkingInstallation(true);
+    setAddReposError("");
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+
+      const res = await fetch(`${API_BASE_URL}/companies/${companyId}/github-installation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ installationId: instId }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to link GitHub App installation");
+      }
+
+      const updatedCompany: CompanyAdminItem = await res.json();
+      setManageCompany(updatedCompany);
+      await fetchAdminCompanies();
+    } catch (err: any) {
+      setAddReposError(err.message || "Failed to link GitHub App installation");
+    } finally {
+      setLinkingInstallation(false);
     }
   };
 
@@ -3741,7 +3809,28 @@ export default function UserDashboard() {
                               </div>
                               <div>
                                 <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                  {company?.githubInstallationId ? (
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                      <Check size={9} /> App
+                                    </span>
+                                  ) : installationIdFromUrl ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                      }}
+                                      disabled={linkingInstallation}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
+                                      title="Click to link newly installed GitHub App"
+                                    >
+                                      {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                      Link App
+                                    </button>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
@@ -4287,6 +4376,33 @@ export default function UserDashboard() {
               {/* ──── STEP 1: VERIFY ORG ──── */}
               {step === 1 && (
                 <div className="dl-step flex flex-col gap-5">
+                  {/* GitHub App Connection Banner */}
+                  {installationIdFromUrl ? (
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/25 flex items-center justify-between text-xs text-emerald-300">
+                      <div className="flex items-center gap-2">
+                        <Check size={16} className="text-emerald-400 shrink-0" />
+                        <span>
+                          <strong>GitHub App Connected</strong> (Installation ID: <code>{installationIdFromUrl}</code>). This company will be created with dedicated GitHub App authorization.
+                        </span>
+                      </div>
+                    </div>
+                  ) : appInfo?.configured ? (
+                    <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={15} className="text-indigo-400 shrink-0" />
+                        <span>Install the DebtLens GitHub App to your organization for higher rate limits.</span>
+                      </div>
+                      <a
+                        href={appInfo.installUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shrink-0"
+                      >
+                        Install App <ArrowRight size={12} />
+                      </a>
+                    </div>
+                  ) : null}
+
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-1.5">
                       GitHub Organization URL
