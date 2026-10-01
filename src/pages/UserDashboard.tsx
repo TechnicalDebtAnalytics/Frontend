@@ -275,12 +275,55 @@ export default function UserDashboard() {
     message?: string;
     totalClasses?: number;
     completedAt?: string;
+    completedTimestamp?: number;
     startedAt?: string;
   }>>({});
 
   // 10-Minute Results Retention Window for Completed Analyses
   const TEN_MINUTES_MS = 10 * 60 * 1000;
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
+
+  // Helper to accurately parse timestamps across server/client timezones
+  const parseServerDate = (dateStr?: string | number | null): number => {
+    if (!dateStr) return 0;
+    if (typeof dateStr === "number") return dateStr;
+    const str = String(dateStr).trim();
+    if (!str) return 0;
+    if (str.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(str)) {
+      return new Date(str).getTime();
+    }
+    const now = Date.now();
+    const asUtc = new Date(str + "Z").getTime();
+    const asLocal = new Date(str).getTime();
+    const diffUtc = Math.abs(now - asUtc);
+    const diffLocal = Math.abs(now - asLocal);
+    return diffUtc <= diffLocal ? asUtc : asLocal;
+  };
+
+  const saveRecentAnalysisToStorage = (repoId: number, data: any) => {
+    try {
+      localStorage.setItem(`debtlens_analysis_recent_${repoId}`, JSON.stringify({
+        ...data,
+        completedTimestamp: data.completedTimestamp || Date.now(),
+      }));
+    } catch { }
+  };
+
+  const getRecentAnalysisFromStorage = (repoId: number): any | null => {
+    try {
+      const item = localStorage.getItem(`debtlens_analysis_recent_${repoId}`);
+      if (!item) return null;
+      const parsed = JSON.parse(item);
+      const timestamp = parsed.completedTimestamp || parseServerDate(parsed.completedAt);
+      if (Date.now() - timestamp < TEN_MINUTES_MS) {
+        return parsed;
+      }
+      localStorage.removeItem(`debtlens_analysis_recent_${repoId}`);
+      return null;
+    } catch {
+      return null;
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -471,6 +514,11 @@ export default function UserDashboard() {
     setAnalysisPageRole(role);
     setAnalysisRepoSearch("");
     setLoadingActiveCompanyRepos(true);
+
+    try {
+      sessionStorage.setItem("debtlens_active_analysis_company", JSON.stringify({ company, role }));
+    } catch { }
+
     try {
       let token = "";
       try {
@@ -485,9 +533,11 @@ export default function UserDashboard() {
         fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
       ]);
 
+      let reposList: CompanyRepoItem[] = [];
       if (reposRes.ok) {
         const data: CompanyRepoItem[] = await reposRes.json();
-        setActiveCompanyRepos(Array.isArray(data) ? data.filter(Boolean) : []);
+        reposList = Array.isArray(data) ? data.filter(Boolean) : [];
+        setActiveCompanyRepos(reposList);
       } else {
         setActiveCompanyRepos([]);
       }
@@ -499,9 +549,19 @@ export default function UserDashboard() {
         message?: string;
         totalClasses?: number;
         completedAt?: string;
+        completedTimestamp?: number;
         startedAt?: string;
       }> = {};
 
+      // 1. First populate from localStorage cache (if within 10 minutes)
+      for (const repo of reposList) {
+        const saved = getRecentAnalysisFromStorage(repo.repositoryId);
+        if (saved) {
+          initialStatusMap[repo.repositoryId] = saved;
+        }
+      }
+
+      // 2. Cross-reference with API analysis history
       if (analysisRes.ok) {
         const analysisData: PastAnalysisJob[] = await analysisRes.json();
         if (Array.isArray(analysisData)) {
@@ -512,6 +572,7 @@ export default function UserDashboard() {
               const isRunningOrQueued = job.status === "QUEUED" || job.status === "RUNNING" || job.status === "PROCESSING";
               const isComp = job.status === "COMPLETED";
               const isFail = job.status === "FAILED";
+              const isCanc = job.status === "CANCELLED";
 
               if (isRunningOrQueued) {
                 initialStatusMap[job.repositoryId] = {
@@ -522,31 +583,22 @@ export default function UserDashboard() {
                   startedAt: job.startedAt,
                   completedAt: job.completedAt || undefined,
                 };
-              } else if (isComp && job.completedAt) {
-                const elapsed = Date.now() - new Date(job.completedAt).getTime();
-                if (elapsed < TEN_MINUTES_MS) {
-                  initialStatusMap[job.repositoryId] = {
+              } else if ((isComp || isFail || isCanc) && job.completedAt) {
+                const jobTimeMs = parseServerDate(job.completedAt);
+                const elapsed = Date.now() - jobTimeMs;
+                if (elapsed >= 0 && elapsed < TEN_MINUTES_MS) {
+                  const jobData = {
                     analysisId: job.analysisId,
-                    status: "COMPLETED",
-                    stage: "COMPLETED",
+                    status: job.status,
+                    stage: job.status,
                     totalClasses: job.totalClassesAnalyzed || job.totalClasses,
                     startedAt: job.startedAt,
                     completedAt: job.completedAt,
-                    message: "Analysis completed successfully",
+                    completedTimestamp: jobTimeMs,
+                    message: isComp ? "Analysis completed successfully" : (isCanc ? "Analysis was cancelled by user." : "Analysis failed"),
                   };
-                }
-              } else if (isFail && job.completedAt) {
-                const elapsed = Date.now() - new Date(job.completedAt).getTime();
-                if (elapsed < TEN_MINUTES_MS) {
-                  initialStatusMap[job.repositoryId] = {
-                    analysisId: job.analysisId,
-                    status: "FAILED",
-                    stage: "FAILED",
-                    totalClasses: job.totalClassesAnalyzed || job.totalClasses,
-                    startedAt: job.startedAt,
-                    completedAt: job.completedAt,
-                    message: "Analysis failed",
-                  };
+                  initialStatusMap[job.repositoryId] = jobData;
+                  saveRecentAnalysisToStorage(job.repositoryId, jobData);
                 }
               }
             }
@@ -565,6 +617,9 @@ export default function UserDashboard() {
   const closeAnalysisPage = () => {
     setAnalysisPageCompany(null);
     setAnalysisRepoSearch("");
+    try {
+      sessionStorage.removeItem("debtlens_active_analysis_company");
+    } catch { }
   };
 
   // Open Full Page Past Analyses Workspace
@@ -673,18 +728,28 @@ export default function UserDashboard() {
             const jobs = await pollRes.json();
             if (Array.isArray(jobs) && jobs.length > 0) {
               const latest = jobs[0];
+              const isDone = latest.status === "COMPLETED" || latest.status === "FAILED" || latest.status === "CANCELLED";
+              const completedTime = latest.completedAt || new Date().toISOString();
+              const completedTimestamp = parseServerDate(completedTime);
+
+              const statusData = {
+                analysisId: latest.analysisId,
+                status: latest.status,
+                stage: latest.status === "COMPLETED" ? "COMPLETED" : (latest.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO"),
+                totalClasses: latest.totalClassesAnalyzed,
+                startedAt: latest.startedAt,
+                completedAt: completedTime,
+                completedTimestamp: completedTimestamp,
+                message: latest.status === "COMPLETED" ? "Analysis completed successfully" : (latest.status === "CANCELLED" ? "Analysis was cancelled by user." : "Analysis failed"),
+              };
+
               setAnalysisStatusMap((prev) => ({
                 ...prev,
-                [repo.repositoryId]: {
-                  analysisId: latest.analysisId,
-                  status: latest.status,
-                  stage: latest.status === "COMPLETED" ? "COMPLETED" : (latest.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO"),
-                  totalClasses: latest.totalClassesAnalyzed,
-                  startedAt: latest.startedAt,
-                  completedAt: latest.completedAt || (latest.status === "COMPLETED" || latest.status === "FAILED" ? (prev[repo.repositoryId]?.completedAt || new Date().toISOString()) : undefined),
-                },
+                [repo.repositoryId]: statusData,
               }));
-              if (latest.status === "COMPLETED" || latest.status === "FAILED" || attempts >= 40) {
+
+              if (isDone) {
+                saveRecentAnalysisToStorage(repo.repositoryId, statusData);
                 clearInterval(pollInterval);
               }
             }
@@ -791,6 +856,17 @@ export default function UserDashboard() {
       fetchAdminCompanies();
       fetchMyPendingInvitations();
       fetchMemberCompanies();
+
+      // Automatically restore active analysis workspace if user refreshed the page
+      try {
+        const savedAnalysis = sessionStorage.getItem("debtlens_active_analysis_company");
+        if (savedAnalysis) {
+          const { company, role } = JSON.parse(savedAnalysis);
+          if (company && company.companyId) {
+            openAnalysisPage(company, role || "admin");
+          }
+        }
+      } catch { }
     }
   }, [isLoading, isAuthenticated]);
 
@@ -832,21 +908,34 @@ export default function UserDashboard() {
 
             // 1. Update analysis status map
             if (repositoryId) {
+              const isDone = status === "COMPLETED" || status === "FAILED" || status === "CANCELLED";
+              const completedTime = isDone ? new Date().toISOString() : undefined;
+              const completedTimestamp = isDone ? Date.now() : undefined;
+
+              const statusData = {
+                analysisId: jobId,
+                status: status,
+                stage: stage || (status === "RUNNING" ? "ML_PREDICTION" : status === "QUEUED" ? "CLONING_REPO" : status),
+                message: message,
+                totalClasses: totalClasses,
+                completedAt: completedTime,
+                completedTimestamp: completedTimestamp,
+                startedAt: new Date().toISOString(),
+              };
+
               setAnalysisStatusMap((prev) => ({
                 ...prev,
                 [repositoryId]: {
-                  analysisId: jobId,
-                  status: status,
-                  stage: stage || (status === "RUNNING" ? "ML_PREDICTION" : status === "QUEUED" ? "CLONING_REPO" : status),
-                  message: message,
-                  totalClasses: totalClasses,
-                  completedAt: status === "COMPLETED" || status === "FAILED" ? new Date().toISOString() : prev[repositoryId]?.completedAt,
-                  startedAt: prev[repositoryId]?.startedAt || new Date().toISOString(),
+                  ...prev[repositoryId],
+                  ...statusData,
+                  completedAt: completedTime || prev[repositoryId]?.completedAt,
+                  completedTimestamp: completedTimestamp || prev[repositoryId]?.completedTimestamp,
                 },
               }));
 
-              // 2. Update analyzing spinner state
-              if (status === "COMPLETED" || status === "FAILED") {
+              // 2. Update analyzing spinner state and localStorage cache
+              if (isDone) {
+                saveRecentAnalysisToStorage(repositoryId, statusData);
                 setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: false }));
               } else if (status === "RUNNING" || status === "QUEUED") {
                 setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: true }));
@@ -1808,9 +1897,14 @@ export default function UserDashboard() {
                       let isExpired = false;
                       let remainingSeconds = 0;
                       if (currentStatus?.completedAt && (currentStatus.status === "COMPLETED" || currentStatus.status === "FAILED" || currentStatus.status === "CANCELLED")) {
-                        const elapsed = currentTime - new Date(currentStatus.completedAt).getTime();
-                        if (elapsed >= TEN_MINUTES_MS) {
-                          isExpired = true;
+                        const completedTime = (currentStatus as any).completedTimestamp || parseServerDate(currentStatus.completedAt);
+                        const elapsed = currentTime - completedTime;
+                        if (elapsed >= TEN_MINUTES_MS || elapsed < 0) {
+                          if (elapsed >= TEN_MINUTES_MS) {
+                            isExpired = true;
+                          } else {
+                            remainingSeconds = Math.floor(TEN_MINUTES_MS / 1000);
+                          }
                         } else {
                           remainingSeconds = Math.max(0, Math.floor((TEN_MINUTES_MS - elapsed) / 1000));
                         }
