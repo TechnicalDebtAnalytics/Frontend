@@ -5,12 +5,11 @@ import {
   queryString,
   useAdminApi,
   type PagedResponse,
-} from '../services/adminApi'
+} from '../config/adminApi'
 import {
   formatDate,
   type AdminCompany,
-} from '../types/adminTypes'
-import './SystemAdminCompanies.css'
+} from './adminTypes'
 
 export type { AdminCompany }
 
@@ -33,7 +32,7 @@ export default function SystemAdminCompanies() {
     setError('')
 
     try {
-      const response = await api.get<PagedResponse<AdminCompany>>(
+      const response = await api<PagedResponse<AdminCompany>>(
         `/admin/companies${queryString({
           q: q || undefined,
           page,
@@ -84,6 +83,7 @@ export default function SystemAdminCompanies() {
     <section className="companies-page">
       <div className="companies-summary">
         <div>
+          <h1>Companies</h1>
           <p className="companies-summary-label">Companies</p>
           <strong>{companies?.totalElements ?? 0}</strong>
         </div>
