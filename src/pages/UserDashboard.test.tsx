@@ -43,7 +43,7 @@ describe('UserDashboard UI flows', () => {
     const user = userEvent.setup()
     const { fetchMock } = renderAuthenticatedDashboard()
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
     await user.click(screen.getByRole('button', { name: 'Create Company' }))
     await user.type(
       screen.getByPlaceholderText('e.g. https://github.com/TechnicalDebtAnalytics'),
@@ -56,7 +56,7 @@ describe('UserDashboard UI flows', () => {
         'Invalid input: Please enter the full GitHub organization URL (e.g. https://github.com/TechnicalDebtAnalytics). Plain organization names are not accepted.',
       ),
     ).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
   it('UI-08 — logs out using the application origin as returnTo', async () => {
