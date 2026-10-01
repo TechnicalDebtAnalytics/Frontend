@@ -276,6 +276,17 @@ export default function UserDashboard() {
     startedAt?: string;
   }>>({});
 
+  // 10-Minute Results Retention Window for Completed Analyses
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // ── Technical Debt Report & Recommendations Modal State ──
   const [selectedReportAnalysisId, setSelectedReportAnalysisId] = useState<number | null>(null);
   const [activeReport, setActiveReport] = useState<TechnicalDebtReport | null>(null);
@@ -452,13 +463,11 @@ export default function UserDashboard() {
     }
   };
 
-  // Open Full Page Analysis Workspace (do NOT preload previous old jobs results)
+  // Open Full Page Analysis Workspace (loads recent analyses completed within 10 minutes or currently running)
   const openAnalysisPage = async (company: CompanyAdminItem, role: "admin" | "member") => {
     setAnalysisPageCompany(company);
     setAnalysisPageRole(role);
     setAnalysisRepoSearch("");
-    // Clear analysis status map so previous historical results are not shown
-    setAnalysisStatusMap({});
     setLoadingActiveCompanyRepos(true);
     try {
       let token = "";
@@ -469,15 +478,82 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
-      if (res.ok) {
-        const data: CompanyRepoItem[] = await res.json();
-        setActiveCompanyRepos(data);
+      const [reposRes, analysisRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
+        fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
+      ]);
+
+      if (reposRes.ok) {
+        const data: CompanyRepoItem[] = await reposRes.json();
+        setActiveCompanyRepos(Array.isArray(data) ? data.filter(Boolean) : []);
       } else {
         setActiveCompanyRepos([]);
       }
+
+      const initialStatusMap: Record<number, {
+        analysisId?: number;
+        status?: string;
+        stage?: string;
+        message?: string;
+        totalClasses?: number;
+        completedAt?: string;
+        startedAt?: string;
+      }> = {};
+
+      if (analysisRes.ok) {
+        const analysisData: PastAnalysisJob[] = await analysisRes.json();
+        if (Array.isArray(analysisData)) {
+          // Sort descending by analysisId to get most recent first
+          const sortedJobs = [...analysisData].sort((a, b) => b.analysisId - a.analysisId);
+          for (const job of sortedJobs) {
+            if (job.repositoryId && !initialStatusMap[job.repositoryId]) {
+              const isRunningOrQueued = job.status === "QUEUED" || job.status === "RUNNING" || job.status === "PROCESSING";
+              const isComp = job.status === "COMPLETED";
+              const isFail = job.status === "FAILED";
+
+              if (isRunningOrQueued) {
+                initialStatusMap[job.repositoryId] = {
+                  analysisId: job.analysisId,
+                  status: job.status,
+                  stage: job.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO",
+                  totalClasses: job.totalClassesAnalyzed || job.totalClasses,
+                  startedAt: job.startedAt,
+                  completedAt: job.completedAt || undefined,
+                };
+              } else if (isComp && job.completedAt) {
+                const elapsed = Date.now() - new Date(job.completedAt).getTime();
+                if (elapsed < TEN_MINUTES_MS) {
+                  initialStatusMap[job.repositoryId] = {
+                    analysisId: job.analysisId,
+                    status: "COMPLETED",
+                    stage: "COMPLETED",
+                    totalClasses: job.totalClassesAnalyzed || job.totalClasses,
+                    startedAt: job.startedAt,
+                    completedAt: job.completedAt,
+                    message: "Analysis completed successfully",
+                  };
+                }
+              } else if (isFail && job.completedAt) {
+                const elapsed = Date.now() - new Date(job.completedAt).getTime();
+                if (elapsed < TEN_MINUTES_MS) {
+                  initialStatusMap[job.repositoryId] = {
+                    analysisId: job.analysisId,
+                    status: "FAILED",
+                    stage: "FAILED",
+                    totalClasses: job.totalClassesAnalyzed || job.totalClasses,
+                    startedAt: job.startedAt,
+                    completedAt: job.completedAt,
+                    message: "Analysis failed",
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+      setAnalysisStatusMap(initialStatusMap);
     } catch (err) {
-      console.warn("Could not fetch company repositories for analysis workspace:", err);
+      console.warn("Could not fetch company repositories or analysis for workspace:", err);
       setActiveCompanyRepos([]);
     } finally {
       setLoadingActiveCompanyRepos(false);
@@ -556,9 +632,8 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const targetBranch = repo.defaultBranch || "main";
       const res = await fetch(
-        `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis?branch=${encodeURIComponent(targetBranch)}`,
+        `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`,
         {
           method: "POST",
           headers,
@@ -583,7 +658,7 @@ export default function UserDashboard() {
 
       setInvitationActionMsg({
         type: "success",
-        text: `Analysis job #${data.analysisId} started for '${repo.repositoryName}' (${targetBranch})! Running metrics extraction and ML models...`,
+        text: `Analysis job #${data.analysisId} started for '${repo.repositoryName}'! Running metrics extraction and ML models...`,
       });
 
       // Active polling every 2.5 seconds until entire ML pipeline is COMPLETED
@@ -601,9 +676,10 @@ export default function UserDashboard() {
                 [repo.repositoryId]: {
                   analysisId: latest.analysisId,
                   status: latest.status,
+                  stage: latest.status === "COMPLETED" ? "COMPLETED" : (latest.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO"),
                   totalClasses: latest.totalClassesAnalyzed,
                   startedAt: latest.startedAt,
-                  completedAt: latest.completedAt,
+                  completedAt: latest.completedAt || (latest.status === "COMPLETED" || latest.status === "FAILED" ? (prev[repo.repositoryId]?.completedAt || new Date().toISOString()) : undefined),
                 },
               }));
               if (latest.status === "COMPLETED" || latest.status === "FAILED" || attempts >= 40) {
@@ -760,7 +836,7 @@ export default function UserDashboard() {
             // 4. Trigger live toast notification
             const toastType = status === "COMPLETED" ? "success" : status === "FAILED" ? "error" : status === "RUNNING" ? "info" : "warning";
             const toastTitle = `Analysis #${jobId} ${status}`;
-            const toastMsg = message || `Repository '${repositoryName || repositoryId}' (${branch || "main"}) is now ${status}.`;
+            const toastMsg = message || `Repository '${repositoryName || repositoryId}' is now ${status}.`;
             setLiveToast({
               id: `${jobId}-${status}-${Date.now()}`,
               type: toastType,
@@ -1671,9 +1747,22 @@ export default function UserDashboard() {
                     .map((repo) => {
                       const isAnalyzing = !!analyzingRepoIds[repo.repositoryId];
                       const currentStatus = analysisStatusMap[repo.repositoryId];
-                      const isCompleted = currentStatus?.status === "COMPLETED";
-                      const isFailed = currentStatus?.status === "FAILED";
-                      const isQueuedOrRunning = isAnalyzing || (currentStatus && (currentStatus.status === "QUEUED" || currentStatus.status === "PROCESSING" || currentStatus.status === "RUNNING"));
+
+                      // 10-minute expiry calculation for completed or failed status
+                      let isExpired = false;
+                      let remainingSeconds = 0;
+                      if (currentStatus?.completedAt && (currentStatus.status === "COMPLETED" || currentStatus.status === "FAILED")) {
+                        const elapsed = currentTime - new Date(currentStatus.completedAt).getTime();
+                        if (elapsed >= TEN_MINUTES_MS) {
+                          isExpired = true;
+                        } else {
+                          remainingSeconds = Math.max(0, Math.floor((TEN_MINUTES_MS - elapsed) / 1000));
+                        }
+                      }
+
+                      const isCompleted = !isExpired && currentStatus?.status === "COMPLETED";
+                      const isFailed = !isExpired && currentStatus?.status === "FAILED";
+                      const isQueuedOrRunning = isAnalyzing || (!isExpired && currentStatus && (currentStatus.status === "QUEUED" || currentStatus.status === "PROCESSING" || currentStatus.status === "RUNNING"));
 
                       return (
                         <div
@@ -1696,7 +1785,7 @@ export default function UserDashboard() {
                                   <h3 className="font-bold text-base text-foreground truncate">{repo.repositoryName}</h3>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono">
-                                      branch: {repo.defaultBranch || "main"}
+                                      Java Repository
                                     </span>
                                   </div>
                                 </div>
@@ -1745,21 +1834,31 @@ export default function UserDashboard() {
                                 </p>
                               </div>
                             ) : isCompleted ? (
-                              <div className="my-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-xs flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                  <div>
-                                    <p className="font-semibold text-white">Analysis Succeeded</p>
-                                    <p className="text-[11px] text-emerald-300">
-                                      {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking.
-                                    </p>
+                              <div className="my-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-xs space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 font-semibold text-white">
+                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                                    <span>Analysis Succeeded</span>
                                   </div>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                                    <Clock size={10} />
+                                    {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s left
+                                  </span>
                                 </div>
+                                <p className="text-[11px] text-emerald-300/90 leading-relaxed">
+                                  {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking. Results remain available for 10 minutes.
+                                </p>
                               </div>
                             ) : isFailed ? (
-                              <div className="my-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center gap-2">
-                                <AlertCircle size={15} className="shrink-0" />
-                                <span>{currentStatus?.message || "Analysis failed to complete. You can retry starting the job."}</span>
+                              <div className="my-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle size={15} className="shrink-0" />
+                                  <span>{currentStatus?.message || "Analysis failed to complete. You can retry starting the job."}</span>
+                                </div>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 shrink-0">
+                                  <Clock size={10} />
+                                  {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s
+                                </span>
                               </div>
                             ) : (
                               <div className="my-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
@@ -2075,7 +2174,7 @@ export default function UserDashboard() {
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs text-muted-foreground">
-                            <span className="font-mono text-[11px]">branch: {repo.defaultBranch || "main"}</span>
+                            <span className="font-mono text-[11px] text-muted-foreground">Linked Repository</span>
                             <a
                               href={repo.htmlUrl}
                               target="_blank"
@@ -2145,7 +2244,7 @@ export default function UserDashboard() {
                     {inviteCompany?.companyName || "Organization"} Contributor Invitations
                   </h1>
                   <p className="text-sm text-slate-300 leading-relaxed">
-                    Select a repository below, then invite repository contributors directly by entering their email address to grant them access to technical debt metrics and refactoring insights.
+                    Select a repository below to invite any contributor across all repository branches directly via email to grant them access to technical debt metrics and refactoring insights.
                   </p>
                 </div>
 
@@ -2190,11 +2289,8 @@ export default function UserDashboard() {
                             : "bg-card text-foreground border-border hover:border-slate-700 hover:bg-muted"
                           }`}
                       >
-                        <GitBranch size={13} />
+                        <Code2 size={14} className={isSelected ? "text-white" : "text-emerald-400"} />
                         <span>{repo.repositoryName}</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono ${isSelected ? "bg-emerald-700 text-emerald-100" : "bg-muted text-muted-foreground"}`}>
-                          {repo.defaultBranch || "main"}
-                        </span>
                       </button>
                     );
                   })}
