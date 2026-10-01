@@ -2639,9 +2639,7 @@ export default function UserDashboard() {
                                       >
                                         <img src={contrib.avatar_url} alt={contrib.login} className="w-4 h-4 rounded-full object-cover" />
                                         <span className="font-medium text-[11px]">@{contrib.login}</span>
-                                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/10 text-indigo-300 font-bold">
-                                          {contrib.contributions}
-                                        </span>
+                                        
                                       </a>
                                     ))}
                                   </div>
@@ -2916,7 +2914,7 @@ export default function UserDashboard() {
                                     </a>
                                   </div>
                                   <span className="text-[11px] font-semibold text-emerald-400">
-                                    {contrib.contributions} commits
+                                    Contributor
                                   </span>
                                 </div>
                               </div>
