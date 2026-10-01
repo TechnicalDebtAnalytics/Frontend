@@ -1,305 +1,210 @@
-import { useEffect, useState } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
-import { API_BASE_URL } from '../config/api'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Building2, Search } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  queryString,
+  useAdminApi,
+  type PagedResponse,
+} from '../config/adminApi'
+import {
+  formatDate,
+  type AdminCompany,
+} from './adminTypes'
 
-export interface AdminCompany {
-  companyId: number
-  companyName: string
-  githubOrganizationUrl: string
-  superAdminName: string
-  superAdminEmail: string
-  totalRepositories: number
-  totalMembers: number
-  createdAt: string
-}
+export type { AdminCompany }
 
-interface SystemAdminCompaniesProps {
-  onSelectCompany?: (company: AdminCompany) => void
-}
+export default function SystemAdminCompanies() {
+  const api = useAdminApi()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-export default function SystemAdminCompanies({ onSelectCompany }: SystemAdminCompaniesProps = {}) {
-  const { getAccessTokenSilently } = useAuth0()
+  const q = searchParams.get('q') ?? ''
+  const page = Math.max(0, Number(searchParams.get('page') ?? '0'))
 
-  const [companies, setCompanies] = useState<AdminCompany[]>([])
+  const [input, setInput] = useState(q)
+  const [companies, setCompanies] =
+    useState<PagedResponse<AdminCompany> | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState('')
+
+  const loadCompanies = useCallback(async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await api<PagedResponse<AdminCompany>>(
+        `/admin/companies${queryString({
+          q: q || undefined,
+          page,
+          size: 20,
+          sort: 'createdAt,desc',
+        })}`,
+      )
+
+      setCompanies(response)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to load companies.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [api, page, q])
 
   useEffect(() => {
-    const loadCompanies = async () => {
-      try {
-        setError(null)
+    void loadCompanies()
+  }, [loadCompanies])
 
-        const token = await getAccessTokenSilently()
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault()
 
-        const response = await fetch(
-          `${API_BASE_URL}/admin/companies`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
+    const next = new URLSearchParams(searchParams)
+    const trimmed = input.trim()
 
-        if (!response.ok) {
-          throw new Error(
-            `Failed to load companies: ${response.status}`
-          )
-        }
-
-        const data: AdminCompany[] = await response.json()
-
-        console.log('ADMIN COMPANIES DATA:', data)
-
-        setCompanies(data)
-      } catch (err) {
-        console.error('Failed to load companies:', err)
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'An unexpected error occurred'
-        )
-      } finally {
-        setLoading(false)
-      }
+    if (trimmed) {
+      next.set('q', trimmed)
+    } else {
+      next.delete('q')
     }
 
-    loadCompanies()
-  }, [getAccessTokenSilently])
-
-  const formatDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
-    } catch {
-      return dateString
-    }
+    next.set('page', '0')
+    setSearchParams(next)
   }
 
-  const extractOrgName = (url: string): string => {
-    if (!url) return '—'
-    try {
-      const parts = url.replace(/\/+$/, '').split('/')
-      return parts[parts.length - 1] || url
-    } catch {
-      return url
-    }
+  const changePage = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('page', String(nextPage))
+    setSearchParams(next)
   }
 
-  /*
-   * ================= LOADING STATE =================
-   */
-  if (loading) {
-    return (
-      <div className="companies-content">
-
-        <div className="page-heading">
-          <div>
-            <h1>Companies</h1>
-            <p>
-              Monitor and manage registered organizations
-              on the DebtLens platform.
-            </p>
-          </div>
-        </div>
-
-        <div className="companies-loading" role="status">
-          <div className="loading-spinner" />
-          <p>Loading companies...</p>
-        </div>
-
-      </div>
-    )
-  }
-
-  /*
-   * ================= ERROR STATE =================
-   */
-  if (error) {
-    return (
-      <div className="companies-content">
-
-        <div className="page-heading">
-          <div>
-            <h1>Companies</h1>
-            <p>
-              Monitor and manage registered organizations
-              on the DebtLens platform.
-            </p>
-          </div>
-        </div>
-
-        <div className="companies-error">
-          <div className="error-icon">!</div>
-          <h3>Failed to Load Companies</h3>
-          <p>{error}</p>
-          <button
-            className="retry-button"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </button>
-        </div>
-
-      </div>
-    )
-  }
-
-  /*
-   * ================= EMPTY STATE =================
-   */
-  if (companies.length === 0) {
-    return (
-      <div className="companies-content">
-
-        <div className="page-heading">
-          <div>
-            <h1>Companies</h1>
-            <p>
-              Monitor and manage registered organizations
-              on the DebtLens platform.
-            </p>
-          </div>
-        </div>
-
-        <div className="companies-empty">
-          <div className="empty-icon">□</div>
-          <h3>No Companies Found</h3>
-          <p>
-            There are no registered companies on the platform yet.
-          </p>
-        </div>
-
-      </div>
-    )
-  }
-
-  /*
-   * ================= COMPANIES TABLE =================
-   */
   return (
-    <div className="companies-content">
-
-      <div className="page-heading">
+    <section className="companies-page">
+      <div className="companies-summary">
         <div>
           <h1>Companies</h1>
-          <p>
-            Monitor and manage registered organizations
-            on the DebtLens platform.
-          </p>
+          <p className="companies-summary-label">Companies</p>
+          <strong>{companies?.totalElements ?? 0}</strong>
         </div>
 
-        <div className="companies-count">
-          <span className="count-badge">
-            {companies.length}
-          </span>
-          Total Companies
-        </div>
+        <form
+          className="companies-search"
+          onSubmit={submitSearch}
+          role="search"
+        >
+          <Search size={18} aria-hidden="true" />
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Search companies"
+            aria-label="Search companies"
+          />
+        </form>
       </div>
 
-
-      <div className="dashboard-card">
-
-        <div className="card-header">
-          <div>
-            <h2>All Companies</h2>
-            <p>
-              Complete list of organizations registered
-              on DebtLens
-            </p>
+      <div className="companies-table-card">
+        {loading ? (
+          <div className="admin-page-state">Loading companies…</div>
+        ) : error ? (
+          <div className="admin-page-state admin-page-state-error">
+            <p>{error}</p>
+            <button type="button" onClick={() => void loadCompanies()}>
+              Retry
+            </button>
           </div>
-        </div>
+        ) : !companies || companies.content.length === 0 ? (
+          <div className="admin-page-state">
+            <Building2 size={28} aria-hidden="true" />
+            <p>No companies match the current filters.</p>
+          </div>
+        ) : (
+          <>
+            <div className="companies-table-wrapper">
+              <table className="companies-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Super admin</th>
+                    <th>Repositories</th>
+                    <th>Users</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
 
-        <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Companies table">
-          <table className="companies-table">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>GitHub Organization</th>
-                <th>Owner / Super Admin</th>
-                <th>Repositories</th>
-                <th>Members</th>
-                <th>Created</th>
-              </tr>
-            </thead>
+                <tbody>
+                  {companies.content.map((company) => (
+                    <tr
+                      key={company.companyId}
+                      tabIndex={0}
+                      onClick={() =>
+                        navigate(`/admin/companies/${company.companyId}`)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          navigate(
+                            `/admin/companies/${company.companyId}`,
+                          )
+                        }
+                      }}
+                    >
+                      <td>
+                        <div className="company-name-cell">
+                          <span className="company-icon">
+                            <Building2 size={18} aria-hidden="true" />
+                          </span>
 
-            <tbody>
-              {companies.map((company) => (
-                <tr
-                  key={company.companyId}
-                  className="clickable-row"
-                  tabIndex={onSelectCompany ? 0 : undefined}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onSelectCompany?.(company)
-                    }
-                  }}
-                  onClick={() => onSelectCompany?.(company)}
-                  title="Click to view company details"
-                >
+                          <div>
+                            <strong>{company.companyName}</strong>
+                            <span>
+                              {company.githubOrganizationUrl || '—'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
 
-                  <td>
-                    <div className="company-name-cell">
-                      <div className="company-avatar">
-                        {(company?.companyName || 'C')
-                          .charAt(0)
-                          .toUpperCase()}
-                      </div>
-                      <span>{company?.companyName || 'Unknown Company'}</span>
-                    </div>
-                  </td>
+                      <td>
+                        <strong>{company.superAdminName || '—'}</strong>
+                        <span>{company.superAdminEmail || '—'}</span>
+                      </td>
 
-                  <td>
-                    <span className="org-badge">
-                      {extractOrgName(
-                        company?.githubOrganizationUrl
-                      )}
-                    </span>
-                  </td>
+                      <td>{company.totalRepositories}</td>
+                      <td>{company.totalUsers}</td>
+                      <td>{formatDate(company.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-                  <td>
-                    <div className="owner-cell">
-                      <strong>
-                        {company.superAdminName}
-                      </strong>
-                      <small>
-                        {company.superAdminEmail}
-                      </small>
-                    </div>
-                  </td>
+            <div
+              className="admin-pagination"
+              aria-label="Company pagination"
+            >
+              <button
+                type="button"
+                disabled={companies.page <= 0}
+                onClick={() => changePage(companies.page - 1)}
+              >
+                Previous
+              </button>
 
-                  <td>
-                    <span className="count-pill">
-                      {company.totalRepositories}
-                    </span>
-                  </td>
+              <span>
+                Page {companies.page + 1} of{' '}
+                {Math.max(companies.totalPages, 1)}
+              </span>
 
-                  <td>
-                    <span className="count-pill">
-                      {company.totalMembers}
-                    </span>
-                  </td>
-
-                  <td>
-                    <span className="date-text">
-                      {formatDate(company.createdAt)}
-                    </span>
-                  </td>
-
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
+              <button
+                type="button"
+                disabled={companies.page + 1 >= companies.totalPages}
+                onClick={() => changePage(companies.page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
       </div>
-
-    </div>
+    </section>
   )
 }

@@ -1,182 +1,467 @@
-import { useEffect, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
-import { Activity, Bell, Building2, GitBranch, LayoutDashboard, Search, Settings, Shield, Users } from 'lucide-react'
-import { API_BASE_URL } from '../config/api'
+import {
+  Activity,
+  Building2,
+  GitBranch,
+  LayoutDashboard,
+  LogOut,
+  Search,
+  Shield,
+  Users,
+} from 'lucide-react'
+import {
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom'
+import {
+  queryString,
+  useAdminApi,
+} from '../config/adminApi'
 import SystemAdminCompanies from './SystemAdminCompanies'
-import type { AdminCompany } from './SystemAdminCompanies'
 import SystemAdminCompanyDetails from './SystemAdminCompanyDetails'
 import SystemAdminUsers from './SystemAdminUsers'
 import SystemAdminAnalysisJobs from './SystemAdminAnalysisJobs'
+import SystemAdminJobDetails from './SystemAdminJobDetails'
+import type {
+  AdminActivity,
+  AdminStats,
+  SearchResult,
+  SystemHealth,
+} from './adminTypes'
+import { formatDate } from './adminTypes'
 import './SystemAdminDashboard.css'
 
-type AdminPage = 'dashboard' | 'companies' | 'users' | 'jobs'
+function AdminOverview() {
+  const api = useAdminApi()
+  const navigate = useNavigate()
 
-export interface HealthItem {
-  name: string
-  key: string
-  description: string
-  status: 'UP' | 'DEGRADED' | 'DOWN'
-  details?: string
-}
-
-export interface SystemHealth {
-  overallStatus: 'UP' | 'DEGRADED' | 'DOWN'
-  timestamp: string
-  services: HealthItem[]
-}
-
-export default function SystemAdminDashboard() {
-  const { getAccessTokenSilently } = useAuth0()
-
-  const [activePage, setActivePage] = useState<AdminPage>(() => {
-    try {
-      const saved = sessionStorage.getItem('debtlens_admin_active_page')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (parsed.activePage) return parsed.activePage
-      }
-    } catch { }
-    return 'dashboard'
-  })
-
-  const [selectedCompany, setSelectedCompany] = useState<AdminCompany | null>(() => {
-    try {
-      const saved = sessionStorage.getItem('debtlens_admin_active_page')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (parsed.selectedCompany) return parsed.selectedCompany
-      }
-    } catch { }
-    return null
-  })
-
-  const handleNavigatePage = (page: AdminPage) => {
-    setActivePage(page)
-    setSelectedCompany(null)
-    try {
-      sessionStorage.setItem('debtlens_admin_active_page', JSON.stringify({ activePage: page, selectedCompany: null }))
-    } catch { }
-  }
-
-  const handleSelectCompany = (company: AdminCompany | null) => {
-    setSelectedCompany(company)
-    try {
-      sessionStorage.setItem('debtlens_admin_active_page', JSON.stringify({ activePage: 'companies', selectedCompany: company }))
-    } catch { }
-  }
-
-  const [stats, setStats] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('debtlens_admin_cached_stats')
-      if (saved) return JSON.parse(saved)
-    } catch { }
-    return {
-      totalUsers: 0,
-      totalCompanies: 0,
-      totalRepositories: 0,
-      totalAnalysisJobs: 0,
-    }
-  })
-
-  const [statsLoading, setStatsLoading] = useState(true)
-  const [health, setHealth] = useState<SystemHealth | null>(() => {
-    try {
-      const saved = sessionStorage.getItem('debtlens_admin_cached_health')
-      if (saved) return JSON.parse(saved)
-    } catch { }
-    return null
-  })
+  const [stats, setStats] = useState<AdminStats | null>(null)
+  const [health, setHealth] = useState<SystemHealth | null>(null)
+  const [activity, setActivity] = useState<AdminActivity[]>([])
+  const [loading, setLoading] = useState(true)
   const [healthLoading, setHealthLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const loadHealth = async () => {
+  const loadHealth = useCallback(async () => {
+    setHealthLoading(true)
+
     try {
-      const token = await getAccessTokenSilently()
-      const response = await fetch(`${API_BASE_URL}/admin/health`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      if (!response.ok) {
-        throw new Error(`Failed to load system health: ${response.status}`)
-      }
-      const data: SystemHealth = await response.json()
-      console.log('ADMIN DASHBOARD HEALTH:', data)
-      setHealth(data)
-      try {
-        sessionStorage.setItem('debtlens_admin_cached_health', JSON.stringify(data))
-      } catch { }
-    } catch (error) {
-      console.error('Failed to load system health:', error)
+      const response = await api<SystemHealth>('/admin/health')
+      setHealth(response)
+    } catch (requestError) {
+      setHealth(null)
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Health check failed.',
+      )
     } finally {
       setHealthLoading(false)
     }
-  }
+  }, [api])
 
-  useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const token = await getAccessTokenSilently()
+  const loadDashboard = useCallback(async () => {
+    setLoading(true)
+    setError(null)
 
-        const response = await fetch(
-          `${API_BASE_URL}/admin/stats`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
+    const [statsResult, activityResult] =
+      await Promise.allSettled([
+        api<AdminStats>('/admin/stats'),
+        api<AdminActivity[]>('/admin/activity?limit=8'),
+      ])
 
-        if (!response.ok) {
-          throw new Error(
-            `Failed to load admin statistics: ${response.status}`
-          )
-        }
-
-        const data = await response.json()
-
-        console.log('ADMIN DASHBOARD STATS:', data)
-
-        setStats(data)
-        try {
-          sessionStorage.setItem('debtlens_admin_cached_stats', JSON.stringify(data))
-        } catch { }
-      } catch (error) {
-        console.error(
-          'Failed to load admin dashboard statistics:',
-          error
-        )
-      } finally {
-        setStatsLoading(false)
-      }
+    if (statsResult.status === 'fulfilled') {
+      setStats(statsResult.value)
+    } else {
+      setError(
+        statsResult.reason instanceof Error
+          ? statsResult.reason.message
+          : 'Statistics failed to load.',
+      )
     }
 
-    loadStats()
-    loadHealth()
-  }, [getAccessTokenSilently])
+    if (activityResult.status === 'fulfilled') {
+      setActivity(activityResult.value)
+    }
+
+    setLoading(false)
+  }, [api])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadDashboard()
+    void loadHealth()
+  }, [loadDashboard, loadHealth])
+
+  const cards = [
+    ['Total Users', stats?.totalUsers, Users],
+    ['Companies', stats?.totalCompanies, Building2],
+    ['Repositories', stats?.totalRepositories, GitBranch],
+    ['Analysis Jobs', stats?.totalAnalysisJobs, Activity],
+  ] as const
+
+  return (
+    <section className="dashboard-content">
+      <div className="page-heading">
+        <div>
+          <h1>System Overview</h1>
+          <p>
+            Monitor the DebtLens platform using live operational data.
+          </p>
+        </div>
+
+        <div className="system-status">
+          <span
+            className={`status-dot ${
+              healthLoading
+                ? 'checking'
+                : health?.overallStatus === 'UP'
+                  ? ''
+                  : health?.overallStatus === 'DEGRADED'
+                    ? 'degraded'
+                    : 'down'
+            }`}
+          />
+
+          {healthLoading
+            ? 'Checking status…'
+            : health?.overallStatus === 'UP'
+              ? 'All systems operational'
+              : health?.overallStatus === 'DEGRADED'
+                ? 'Systems degraded'
+                : 'System disruption'}
+        </div>
+      </div>
+
+      {error && (
+        <div className="admin-inline-error" role="alert">
+          {error}
+
+          <button
+            type="button"
+            onClick={() => {
+              void loadDashboard()
+              void loadHealth()
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="stats-grid">
+        {cards.map(([title, value, Icon]) => (
+          <div className="stat-card" key={title}>
+            <div className="stat-card-top">
+              <div className="stat-icon">
+                <Icon size={19} aria-hidden="true" />
+              </div>
+            </div>
+
+            <div className="stat-value" aria-busy={loading}>
+              {loading ? (
+                <span
+                  className="dl-skeleton"
+                  aria-label="Loading"
+                />
+              ) : (
+                value ?? 0
+              )}
+            </div>
+
+            <div className="stat-title">{title}</div>
+          </div>
+        ))}
+      </div>
+
+      {stats && (
+        <div
+          className="job-summary"
+          aria-label="Analysis status summary"
+        >
+          <span>
+            Queued <strong>{stats.queuedJobs}</strong>
+          </span>
+
+          <span>
+            Running <strong>{stats.runningJobs}</strong>
+          </span>
+
+          <span>
+            Completed <strong>{stats.completedJobs}</strong>
+          </span>
+
+          <span>
+            Failed <strong>{stats.failedJobs}</strong>
+          </span>
+
+          <span>
+            Cancelled <strong>{stats.cancelledJobs}</strong>
+          </span>
+        </div>
+      )}
+
+      <div className="dashboard-grid">
+        <div className="dashboard-card">
+          <div className="card-header">
+            <div>
+              <h2>System Health</h2>
+              <p>Independent dependency and worker checks</p>
+            </div>
+
+            <button
+              type="button"
+              className="view-button"
+              disabled={healthLoading}
+              onClick={() => void loadHealth()}
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div
+            className="health-list"
+            aria-busy={healthLoading}
+          >
+            {healthLoading ? (
+              <div className="admin-empty">
+                Checking services…
+              </div>
+            ) : health?.services ? (
+              health.services.map((service) => (
+                <div
+                  className="health-item"
+                  key={service.key}
+                >
+                  <div className="health-name">
+                    <span
+                      className={`health-dot ${
+                        service.status === 'UP'
+                          ? ''
+                          : service.status.toLowerCase()
+                      }`}
+                    />
+
+                    <div>
+                      <strong>{service.name}</strong>
+                      <small>
+                        {service.details} · {service.responseTimeMs} ms
+                      </small>
+                    </div>
+                  </div>
+
+                  <span
+                    className={
+                      service.status === 'UP'
+                        ? 'operational'
+                        : service.status.toLowerCase()
+                    }
+                  >
+                    {service.status}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="admin-empty">
+                Health unavailable.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="dashboard-card">
+          <div className="card-header">
+            <div>
+              <h2>Recent Activity</h2>
+              <p>Latest recorded platform events</p>
+            </div>
+          </div>
+
+          <div className="activity-list">
+            {activity.length === 0 ? (
+              <div className="admin-empty">
+                No recent activity.
+              </div>
+            ) : (
+              activity.map((event, index) => (
+                <button
+                  type="button"
+                  className="activity-item activity-link"
+                  key={`${event.type}-${event.targetId}-${index}`}
+                  onClick={() => {
+                    if (
+                      event.targetType === 'COMPANY' &&
+                      event.targetId
+                    ) {
+                      navigate(
+                        `/admin/companies/${event.targetId}`,
+                      )
+                    }
+
+                    if (
+                      event.targetType === 'ANALYSIS_JOB' &&
+                      event.targetId
+                    ) {
+                      navigate(`/admin/jobs/${event.targetId}`)
+                    }
+
+                    if (event.targetType === 'USER') {
+                      navigate(
+                        `/admin/users?q=${encodeURIComponent(
+                          event.description,
+                        )}`,
+                      )
+                    }
+                  }}
+                >
+                  <div className="activity-icon">
+                    <Activity size={15} aria-hidden="true" />
+                  </div>
+
+                  <div className="activity-content">
+                    <strong>{event.title}</strong>
+
+                    <span>
+                      {event.description} ·{' '}
+                      {formatDate(event.occurredAt, true)}
+                    </span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CompanyRoute() {
+  const { companyId } = useParams()
+  const id = Number(companyId)
+
+  return Number.isInteger(id) && id > 0 ? (
+    <SystemAdminCompanyDetails companyId={id} />
+  ) : (
+    <Navigate to="/admin/companies" replace />
+  )
+}
+
+function JobRoute() {
+  const { analysisId } = useParams()
+  const id = Number(analysisId)
+
+  return Number.isInteger(id) && id > 0 ? (
+    <SystemAdminJobDetails analysisId={id} />
+  ) : (
+    <Navigate to="/admin/jobs" replace />
+  )
+}
+
+export default function SystemAdminDashboard() {
+  const { user, logout } = useAuth0()
+  const api = useAdminApi()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const [search, setSearch] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+
+  const initials = useMemo(
+    () =>
+      (user?.name || user?.email || 'System Admin')
+        .split(/\s+/)
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase(),
+    [user],
+  )
+
+  useEffect(() => {
+    if (search.trim().length < 2) {
+      return
+    }
+
+    const timer = window.setTimeout(async () => {
+      setSearching(true)
+
+      try {
+        const response = await api<SearchResult[]>(
+          `/admin/search?${queryString({
+            q: search.trim(),
+            limit: 5,
+          })}`,
+        )
+
+        setResults(response)
+      } catch {
+        setResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [api, search])
+
+  const title = location.pathname.includes('/companies/')
+    ? 'Company Details'
+    : location.pathname.endsWith('/companies')
+      ? 'Companies'
+      : location.pathname.includes('/jobs/')
+        ? 'Analysis Job'
+        : location.pathname.endsWith('/jobs')
+          ? 'Analysis Jobs'
+          : location.pathname.endsWith('/users')
+            ? 'Users'
+            : 'Dashboard'
+
+  const openResult = (result: SearchResult) => {
+    if (result.type === 'COMPANY') {
+      navigate(`/admin/companies/${result.id}`)
+    } else if (result.type === 'ANALYSIS_JOB') {
+      navigate(`/admin/jobs/${result.id}`)
+    } else if (
+      result.type === 'REPOSITORY' &&
+      result.parentId
+    ) {
+      navigate(
+        `/admin/companies/${result.parentId}?tab=repositories&repo=${result.id}`,
+      )
+    } else {
+      navigate(
+        `/admin/users?q=${encodeURIComponent(result.label)}`,
+      )
+    }
+
+    setSearch('')
+    setResults([])
+  }
 
   return (
     <div className="admin-layout">
-
-      {/* ================= SIDEBAR ================= */}
       <aside className="admin-sidebar">
-
         <div className="sidebar-brand">
           <div className="brand-icon">
             <Shield size={21} aria-hidden="true" />
           </div>
 
           <div>
-            <div className="brand-name">
-              DebtLens
-            </div>
-
-            <div className="brand-subtitle">
-              PLATFORM ADMIN
-            </div>
+            <div className="brand-name">DebtLens</div>
+            <div className="brand-subtitle">PLATFORM ADMIN</div>
           </div>
         </div>
 
@@ -185,528 +470,180 @@ export default function SystemAdminDashboard() {
         </div>
 
         <nav className="sidebar-nav">
-
-          <button
-            className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
-            aria-current={activePage === 'dashboard' ? 'page' : undefined}
-            onClick={() => handleNavigatePage('dashboard')}
+          <NavLink
+            end
+            to="/admin"
+            className={({ isActive }) =>
+              `nav-item ${isActive ? 'active' : ''}`
+            }
           >
-            <span className="nav-icon"><LayoutDashboard size={18} aria-hidden="true" /></span>
+            <LayoutDashboard size={18} aria-hidden="true" />
             <span>Dashboard</span>
-          </button>
+          </NavLink>
 
-          <button
-            className={`nav-item ${activePage === 'companies' ? 'active' : ''}`}
-            aria-current={activePage === 'companies' ? 'page' : undefined}
-            onClick={() => handleNavigatePage('companies')}
+          <NavLink
+            to="/admin/companies"
+            className={({ isActive }) =>
+              `nav-item ${isActive ? 'active' : ''}`
+            }
           >
-            <span className="nav-icon"><Building2 size={18} aria-hidden="true" /></span>
+            <Building2 size={18} aria-hidden="true" />
             <span>Companies</span>
-          </button>
+          </NavLink>
 
-          <button
-            className={`nav-item ${activePage === 'users' ? 'active' : ''}`}
-            aria-current={activePage === 'users' ? 'page' : undefined}
-            onClick={() => handleNavigatePage('users')}
+          <NavLink
+            to="/admin/users"
+            className={({ isActive }) =>
+              `nav-item ${isActive ? 'active' : ''}`
+            }
           >
-            <span className="nav-icon"><Users size={18} aria-hidden="true" /></span>
+            <Users size={18} aria-hidden="true" />
             <span>Users</span>
-          </button>
+          </NavLink>
 
-          <button
-            className={`nav-item ${activePage === 'jobs' ? 'active' : ''}`}
-            aria-current={activePage === 'jobs' ? 'page' : undefined}
-            onClick={() => handleNavigatePage('jobs')}
+          <NavLink
+            to="/admin/jobs"
+            className={({ isActive }) =>
+              `nav-item ${isActive ? 'active' : ''}`
+            }
           >
-            <span className="nav-icon"><Activity size={18} aria-hidden="true" /></span>
+            <Activity size={18} aria-hidden="true" />
             <span>Analysis Jobs</span>
-          </button>
-
-          <button className="nav-item">
-            <span className="nav-icon"><Settings size={18} aria-hidden="true" /></span>
-            <span>Settings</span>
-          </button>
-
+          </NavLink>
         </nav>
 
-        {/* Sidebar user */}
         <div className="sidebar-user">
-
-          <div className="user-avatar">
-            SA
-          </div>
+          {user?.picture ? (
+            <img
+              className="user-avatar"
+              src={user.picture}
+              alt=""
+            />
+          ) : (
+            <div className="user-avatar">{initials}</div>
+          )}
 
           <div className="user-info">
-
             <div className="user-name">
-              System Admin
+              {user?.name || user?.email || 'System Admin'}
             </div>
 
             <div className="user-role">
               Platform Administrator
             </div>
-
           </div>
 
+          <button
+            type="button"
+            className="logout-button"
+            aria-label="Log out"
+            title="Log out"
+            onClick={() =>
+              logout({
+                logoutParams: {
+                  returnTo: window.location.origin,
+                },
+              })
+            }
+          >
+            <LogOut size={17} aria-hidden="true" />
+          </button>
         </div>
-
       </aside>
 
-
-      {/* ================= MAIN AREA ================= */}
       <main className="admin-main">
-
-        {/* ================= TOP BAR ================= */}
         <header className="admin-header">
-
-          <div className="header-title">
-            {activePage === 'companies'
-              ? selectedCompany
-                ? `Companies / ${selectedCompany.companyName}`
-                : 'Companies'
-              : activePage === 'users'
-                ? 'Users'
-                : activePage === 'jobs'
-                  ? 'Analysis Jobs'
-                  : 'Dashboard'}
-          </div>
+          <div className="header-title">{title}</div>
 
           <div className="header-actions">
+            <div className="global-search">
+              <div className="search-box">
+                <Search size={16} aria-hidden="true" />
 
-            <div className="search-box">
-              <Search size={16} aria-hidden="true" />
+                <input
+                  value={search}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    setSearch(value)
 
-              <input
-                type="text"
-                aria-label="Search platform"
-                placeholder="Search platform..."
-              />
+                    if (value.trim().length < 2) {
+                      setResults([])
+                      setSearching(false)
+                    }
+                  }}
+                  aria-label="Search platform"
+                  placeholder="Search platform…"
+                />
+              </div>
+
+              {(searching || results.length > 0) && (
+                <div
+                  className="search-results"
+                  role="listbox"
+                  aria-label="Search results"
+                >
+                  {searching ? (
+                    <div className="search-result-muted">
+                      Searching…
+                    </div>
+                  ) : (
+                    results.map((result) => (
+                      <button
+                        type="button"
+                        key={`${result.type}-${result.id}`}
+                        role="option"
+                        aria-selected="false"
+                        onClick={() => openResult(result)}
+                      >
+                        <strong>{result.label}</strong>
+
+                        <span>
+                          {result.type.replace('_', ' ')} ·{' '}
+                          {result.description}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
-
-            <button className="header-button" aria-label="Notifications">
-              <Bell size={17} aria-hidden="true" />
-            </button>
-
-            <div className="header-avatar">
-              SA
-            </div>
-
           </div>
-
         </header>
 
-
-        {/* ================= CONTENT ================= */}
-        {/* ================= CONTENT AREA ================= */}
-        {activePage === 'companies' ? (
-          <section key={activePage} className="dashboard-content">
-            {selectedCompany ? (
-              <SystemAdminCompanyDetails
-                companyId={selectedCompany.companyId}
-                initialCompanyData={selectedCompany}
-                onBack={() => handleSelectCompany(null)}
-              />
-            ) : (
-              <SystemAdminCompanies
-                onSelectCompany={(company) => handleSelectCompany(company)}
-              />
-            )}
-          </section>
-        ) : activePage === 'users' ? (
-          <section key={activePage} className="dashboard-content">
-            <SystemAdminUsers />
-          </section>
-        ) : activePage === 'jobs' ? (
-          <section key={activePage} className="dashboard-content">
-            <SystemAdminAnalysisJobs />
-          </section>
-        ) : (
-        <section key={activePage} className="dashboard-content">
-
-          {/* ================= PAGE HEADING ================= */}
-          <div className="page-heading">
-
-            <div>
-
-              <h1>
-                System Overview
-              </h1>
-
-              <p>
-                Monitor and manage the DebtLens platform.
-              </p>
-
-            </div>
-
-            <div className="system-status">
-              <span className={`status-dot ${healthLoading ? 'checking' : health?.overallStatus === 'DEGRADED' ? 'degraded' : health?.overallStatus === 'UP' ? '' : 'down'}`} />
-              {healthLoading
-                ? 'Checking status...'
-                : health?.overallStatus === 'UP'
-                  ? 'All systems operational'
-                  : health?.overallStatus === 'DEGRADED'
-                    ? 'Systems degraded'
-                    : 'System disruption'}
-            </div>
-
-          </div>
-
-
-          {/* ================= STATISTICS ================= */}
-          <div className="stats-grid dl-stagger">
-
-            {/* TOTAL USERS */}
-            <div className="stat-card">
-
-              <div className="stat-card-top">
-
-                <div className="stat-icon">
-                  <Users size={19} aria-hidden="true" />
-                </div>
-
-                <span className="stat-growth">
-                  +8.4%
-                </span>
-
-              </div>
-
-              <div className="stat-value" aria-busy={statsLoading}>
-                {statsLoading ? <span className="dl-skeleton" aria-label="Loading" /> : stats.totalUsers}
-              </div>
-
-              <div className="stat-title">
-                Total Users
-              </div>
-
-              <div className="stat-description">
-                Registered platform users
-              </div>
-
-            </div>
-
-
-            {/* TOTAL COMPANIES */}
-            <div className="stat-card">
-
-              <div className="stat-card-top">
-
-                <div className="stat-icon">
-                  <Building2 size={19} aria-hidden="true" />
-                </div>
-
-                <span className="stat-growth">
-                  +3.2%
-                </span>
-
-              </div>
-
-              <div className="stat-value" aria-busy={statsLoading}>
-                {statsLoading ? <span className="dl-skeleton" aria-label="Loading" /> : stats.totalCompanies}
-              </div>
-
-              <div className="stat-title">
-                Companies
-              </div>
-
-              <div className="stat-description">
-                Registered organizations
-              </div>
-
-            </div>
-
-
-            {/* TOTAL REPOSITORIES */}
-            <div className="stat-card">
-
-              <div className="stat-card-top">
-
-                <div className="stat-icon">
-                  <GitBranch size={19} aria-hidden="true" />
-                </div>
-
-                <span className="stat-growth">
-                  +5.7%
-                </span>
-
-              </div>
-
-              <div className="stat-value" aria-busy={statsLoading}>
-                {statsLoading
-                  ? <span className="dl-skeleton" aria-label="Loading" />
-                  : stats.totalRepositories}
-              </div>
-
-              <div className="stat-title">
-                Repositories
-              </div>
-
-              <div className="stat-description">
-                Connected repositories
-              </div>
-
-            </div>
-
-
-            {/* TOTAL ANALYSIS JOBS */}
-            <div className="stat-card">
-
-              <div className="stat-card-top">
-
-                <div className="stat-icon">
-                  <Activity size={19} aria-hidden="true" />
-                </div>
-
-                <span className="stat-growth">
-                  +12.1%
-                </span>
-
-              </div>
-
-              <div className="stat-value" aria-busy={statsLoading}>
-                {statsLoading
-                  ? <span className="dl-skeleton" aria-label="Loading" />
-                  : stats.totalAnalysisJobs}
-              </div>
-
-              <div className="stat-title">
-                Analysis Jobs
-              </div>
-
-              <div className="stat-description">
-                Total analysis jobs
-              </div>
-
-            </div>
-
-          </div>
-
-
-          {/* ================= LOWER SECTION ================= */}
-          <div className="dashboard-grid dl-stagger dl-scroll">
-
-
-            {/* ================= SYSTEM HEALTH ================= */}
-            <div className="dashboard-card">
-
-              <div className="card-header">
-
-                <div>
-
-                  <h2>
-                    System Health
-                  </h2>
-
-                  <p>
-                    Current status of platform services
-                  </p>
-
-                </div>
-
-                <button
-                  className="view-button"
-                  onClick={() => {
-                    setHealthLoading(true)
-                    loadHealth()
-                  }}
-                >
-                  Refresh
-                </button>
-
-              </div>
-
-
-              <div className="health-list" aria-busy={healthLoading}>
-                {healthLoading ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
-                    Checking service health...
-                  </div>
-                ) : !health || !health.services || health.services.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
-                    Unable to fetch health status.
-                  </div>
-                ) : (
-                  health.services.map((srv) => (
-                    <div className="health-item" key={srv.key || srv.name}>
-                      <div className="health-name">
-                        <span
-                          className={`health-dot ${
-                            srv.status === 'DEGRADED'
-                              ? 'degraded'
-                              : srv.status === 'DOWN'
-                              ? 'down'
-                              : ''
-                          }`}
-                        />
-                        <div>
-                          <strong>{srv.name}</strong>
-                          <small>{srv.description}</small>
-                        </div>
-                      </div>
-
-                      <span
-                        className={
-                          srv.status === 'UP'
-                            ? 'operational'
-                            : srv.status === 'DEGRADED'
-                            ? 'degraded'
-                            : 'down'
-                        }
-                      >
-                        {srv.status === 'UP'
-                          ? 'Operational'
-                          : srv.status === 'DEGRADED'
-                          ? 'Degraded'
-                          : 'Unavailable'}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-
-            </div>
-
-
-            {/* ================= RECENT ACTIVITY ================= */}
-            <div className="dashboard-card">
-
-              <div className="card-header">
-
-                <div>
-
-                  <h2>
-                    Recent Activity
-                  </h2>
-
-                  <p>
-                    Latest platform events
-                  </p>
-
-                </div>
-
-                <button className="view-button">
-                  View all
-                </button>
-
-              </div>
-
-
-              <div className="activity-list">
-
-                <div className="activity-item">
-
-                  <div className="activity-icon">
-                    +
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      New company registered
-                    </strong>
-
-                    <span>
-                      12 minutes ago
-                    </span>
-
-                  </div>
-
-                </div>
-
-
-                <div className="activity-item">
-
-                  <div className="activity-icon">
-                    ✓
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      Repository analysis completed
-                    </strong>
-
-                    <span>
-                      27 minutes ago
-                    </span>
-
-                  </div>
-
-                </div>
-
-
-                <div className="activity-item">
-
-                  <div className="activity-icon">
-                    ♙
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      New user registered
-                    </strong>
-
-                    <span>
-                      41 minutes ago
-                    </span>
-
-                  </div>
-
-                </div>
-
-
-                <div className="activity-item">
-
-                  <div className="activity-icon warning">
-                    !
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      Analysis job failed
-                    </strong>
-
-                    <span>
-                      1 hour ago
-                    </span>
-
-                  </div>
-
-                </div>
-
-
-                <div className="activity-item">
-
-                  <div className="activity-icon">
-                    ✓
-                  </div>
-
-                  <div className="activity-content">
-
-                    <strong>
-                      System health check completed
-                    </strong>
-
-                    <span>
-                      2 hours ago
-                    </span>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
-        )}
-
+        <Routes>
+          <Route index element={<AdminOverview />} />
+
+          <Route
+            path="companies"
+            element={<SystemAdminCompanies />}
+          />
+
+          <Route
+            path="companies/:companyId"
+            element={<CompanyRoute />}
+          />
+
+          <Route
+            path="users"
+            element={<SystemAdminUsers />}
+          />
+
+          <Route
+            path="jobs"
+            element={<SystemAdminAnalysisJobs />}
+          />
+
+          <Route
+            path="jobs/:analysisId"
+            element={<JobRoute />}
+          />
+
+          <Route
+            path="*"
+            element={<Navigate to="/admin" replace />}
+          />
+        </Routes>
       </main>
-
     </div>
   )
 }

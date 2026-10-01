@@ -1,815 +1,430 @@
-import { useEffect, useState } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
-import { API_BASE_URL } from '../config/api'
-
-export interface AdminCompanySummary {
-  companyId: number
-  companyName: string
-  githubOrganizationUrl: string
-  superAdminName: string
-  superAdminEmail: string
-  totalRepositories: number
-  totalMembers: number
-  createdAt: string
-}
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
+import {
+  ArrowLeft,
+  Building2,
+  ExternalLink,
+  GitBranch,
+  Users,
+} from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  useAdminApi,
+  type PagedResponse,
+} from '../config/adminApi'
+import type {
+  AdminCompany,
+  AdminUser,
+  AnalysisJob,
+} from './adminTypes'
+import { formatDate } from './adminTypes'
 
 interface RepositoryData {
   repositoryId: number
-  githubRepositoryId: string
   repositoryName: string
   repositoryUrl: string
   defaultBranch: string
   createdAt?: string
 }
 
-interface CompanyDetailsData {
-  companyId: number
-  companyName: string
-  githubOrganizationUrl: string
-  githubOrganizationName?: string
-  createdByUserId?: number
-  createdByName?: string
-  totalRepositories: number
-  repositories?: RepositoryData[]
-  createdAt: string
-  updatedAt?: string
-}
-
-interface CompanyUser {
-  userId: number
-  firstName: string
-  lastName: string
-  email: string
-  githubUsername: string
-  emailVerified: boolean
-  companyRole: string
-  companyName: string
-  createdAt: string
-}
-
-interface AnalysisJobData {
-  analysisId: number
-  repositoryId: number
-  repositoryName: string
-  repositoryUrl: string
-  branch?: string
-  startedByUserId?: number
-  startedByName?: string
-  status: string
-  startedAt: string
-  completedAt?: string
-  totalClassesAnalyzed?: number
-}
+type Tab = 'overview' | 'repositories' | 'users' | 'jobs'
 
 interface SystemAdminCompanyDetailsProps {
   companyId: number
-  initialCompanyData?: AdminCompanySummary | null
-  onBack: () => void
 }
-
-type TabType = 'overview' | 'repositories' | 'users' | 'jobs'
 
 export default function SystemAdminCompanyDetails({
   companyId,
-  initialCompanyData,
-  onBack,
 }: SystemAdminCompanyDetailsProps) {
-  const { getAccessTokenSilently } = useAuth0()
+  const api = useAdminApi()
+  const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
 
-  const [company, setCompany] = useState<CompanyDetailsData | null>(null)
+  const rawTab = params.get('tab')
+  const tab: Tab =
+    rawTab === 'repositories' ||
+    rawTab === 'users' ||
+    rawTab === 'jobs'
+      ? rawTab
+      : 'overview'
+
+  const [company, setCompany] = useState<AdminCompany | null>(null)
   const [repositories, setRepositories] = useState<RepositoryData[]>([])
-  const [users, setUsers] = useState<CompanyUser[]>([])
-  const [jobs, setJobs] = useState<AnalysisJobData[]>([])
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [jobs, setJobs] = useState<AnalysisJob[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const [loadingCompany, setLoadingCompany] = useState(true)
-  const [loadingRepos, setLoadingRepos] = useState(true)
-  const [loadingUsers, setLoadingUsers] = useState(true)
-  const [loadingJobs, setLoadingJobs] = useState(true)
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
 
-  const [companyError, setCompanyError] = useState<string | null>(null)
-  const [reposError, setReposError] = useState<string | null>(null)
-  const [usersError, setUsersError] = useState<string | null>(null)
-  const [jobsError, setJobsError] = useState<string | null>(null)
-
-  const [activeTab, setActiveTab] = useState<TabType>('overview')
-
-  /* 1. Fetch Company Details & Repositories */
-  useEffect(() => {
-    let isMounted = true
-
-    const fetchDetails = async () => {
-      if (!companyId || isNaN(companyId)) {
-        setCompanyError('Invalid Company ID')
-        setLoadingCompany(false)
-        setLoadingRepos(false)
-        return
-      }
-
-      setLoadingCompany(true)
-      setLoadingRepos(true)
-      setCompanyError(null)
-      setReposError(null)
-
-      try {
-        const token = await getAccessTokenSilently()
-
-        // Fetch Company Details from GET /api/companies/{companyId}
-        const companyRes = await fetch(
-          `${API_BASE_URL}/companies/${companyId}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (!companyRes.ok) {
-          if (companyRes.status === 404) {
-            throw new Error(`Company with ID #${companyId} was not found.`)
-          }
-          throw new Error(`Failed to load company details (${companyRes.status}).`)
-        }
-
-        const companyData: CompanyDetailsData = await companyRes.json()
-        if (isMounted) {
-          setCompany(companyData)
-          if (companyData.repositories && Array.isArray(companyData.repositories)) {
-            setRepositories(companyData.repositories)
-          }
-        }
-
-        // Fetch Repositories from GET /api/companies/{companyId}/repositories
-        try {
-          const reposRes = await fetch(
-            `${API_BASE_URL}/companies/${companyId}/repositories`,
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          )
-
-          if (reposRes.ok) {
-            const reposData: RepositoryData[] = await reposRes.json()
-            if (isMounted && Array.isArray(reposData) && reposData.length > 0) {
-              setRepositories(reposData)
-            }
-          } else {
-            console.warn(
-              `GET /api/companies/${companyId}/repositories returned ${reposRes.status}. Using company data fallback.`
-            )
-          }
-        } catch (rErr) {
-          console.warn('Failed to fetch repositories endpoint directly:', rErr)
-        }
-      } catch (err) {
-        if (isMounted) {
-          setCompanyError(
-            err instanceof Error ? err.message : 'An error occurred loading company details.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingCompany(false)
-          setLoadingRepos(false)
-        }
-      }
-    }
-
-    fetchDetails()
-
-    return () => {
-      isMounted = false
-    }
-  }, [companyId, getAccessTokenSilently])
-
-  /* 2. Fetch Company Users from GET /api/admin/companies/{companyId}/users */
-  useEffect(() => {
-    let isMounted = true
-
-    const fetchUsers = async () => {
-      if (!companyId || isNaN(companyId)) return
-
-      setLoadingUsers(true)
-      setUsersError(null)
-
-      try {
-        const token = await getAccessTokenSilently()
-        const res = await fetch(
-          `${API_BASE_URL}/admin/companies/${companyId}/users`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (!res.ok) {
-          throw new Error(`Failed to load company users (${res.status}).`)
-        }
-
-        const data: CompanyUser[] = await res.json()
-        if (isMounted) {
-          setUsers(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          setUsersError(
-            err instanceof Error ? err.message : 'Failed to load company users.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingUsers(false)
-        }
-      }
-    }
-
-    fetchUsers()
-
-    return () => {
-      isMounted = false
-    }
-  }, [companyId, getAccessTokenSilently])
-
-  /* 3. Fetch Company Analysis Jobs from GET /api/admin/companies/{companyId}/analysis-jobs */
-  useEffect(() => {
-    let isMounted = true
-
-    const fetchJobs = async () => {
-      if (!companyId || isNaN(companyId)) return
-
-      setLoadingJobs(true)
-      setJobsError(null)
-
-      try {
-        const token = await getAccessTokenSilently()
-        const res = await fetch(
-          `${API_BASE_URL}/admin/companies/${companyId}/analysis-jobs`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (!res.ok) {
-          throw new Error(`Failed to load analysis jobs (${res.status}).`)
-        }
-
-        const data: AnalysisJobData[] = await res.json()
-        if (isMounted) {
-          setJobs(data)
-        }
-      } catch (err) {
-        if (isMounted) {
-          setJobsError(
-            err instanceof Error ? err.message : 'Failed to load analysis jobs.'
-          )
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingJobs(false)
-        }
-      }
-    }
-
-    fetchJobs()
-
-    return () => {
-      isMounted = false
-    }
-  }, [companyId, getAccessTokenSilently])
-
-  const formatDate = (dateString?: string): string => {
-    if (!dateString) return '—'
     try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
-    } catch {
-      return dateString
+      const [companyData, repos, userPage, jobPage] =
+        await Promise.all([
+          api<AdminCompany>(
+            `/admin/companies/${companyId}`,
+          ),
+          api<RepositoryData[]>(
+            `/admin/companies/${companyId}/repositories`,
+          ),
+          api<PagedResponse<AdminUser>>(
+            `/admin/companies/${companyId}/users?size=100`,
+          ),
+          api<PagedResponse<AnalysisJob>>(
+            `/admin/companies/${companyId}/analysis-jobs?size=100`,
+          ),
+        ])
+
+      setCompany(companyData)
+      setRepositories(repos)
+      setUsers(userPage.content)
+      setJobs(jobPage.content)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Failed to load company.',
+      )
+    } finally {
+      setLoading(false)
     }
-  }
+  }, [api, companyId])
 
-  const extractOrgName = (url?: string): string => {
-    if (!url) return '—'
-    try {
-      const parts = url.replace(/\/+$/, '').split('/')
-      return parts[parts.length - 1] || url
-    } catch {
-      return url
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load()
+  }, [load])
+
+  const selectTab = (value: Tab) => {
+    const nextParams = new URLSearchParams(params)
+
+    if (value === 'overview') {
+      nextParams.delete('tab')
+    } else {
+      nextParams.set('tab', value)
     }
+
+    setParams(nextParams)
   }
 
-  const getUserInitials = (user: CompanyUser): string => {
-    const fn = user.firstName ? user.firstName.charAt(0).toUpperCase() : ''
-    const ln = user.lastName ? user.lastName.charAt(0).toUpperCase() : ''
-    if (fn || ln) return `${fn}${ln}`
-    if (user.email) return user.email.charAt(0).toUpperCase()
-    return 'U'
+  const openJob = (analysisId: number) => {
+    navigate(`/admin/jobs/${analysisId}`)
   }
 
-  const getUserFullName = (user: CompanyUser): string => {
-    const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim()
-    return fullName || user.email || `User #${user.userId}`
-  }
-
-  const displayCompany = company || (initialCompanyData ? {
-    companyId: initialCompanyData.companyId,
-    companyName: initialCompanyData.companyName,
-    githubOrganizationUrl: initialCompanyData.githubOrganizationUrl,
-    createdByName: initialCompanyData.superAdminName,
-    totalRepositories: initialCompanyData.totalRepositories,
-    createdAt: initialCompanyData.createdAt,
-  } : null)
-
-  const ownerName = displayCompany?.createdByName || initialCompanyData?.superAdminName || '—'
-  const ownerEmail = initialCompanyData?.superAdminEmail || '—'
-  const totalMembersCount = users.length > 0 ? users.length : (initialCompanyData?.totalMembers ?? '—')
-  const totalReposCount = repositories.length || displayCompany?.totalRepositories || 0
-
-  /* ================= LOADING STATE ================= */
-  if (loadingCompany && !displayCompany) {
+  if (loading) {
     return (
-      <div className="companies-content">
-        <div className="details-header-nav">
-          <button className="back-button" onClick={onBack}>
-            ← Back to Companies
-          </button>
-        </div>
+      <section className="dashboard-content">
         <div className="companies-loading" role="status">
           <div className="loading-spinner" />
-          <p>Loading company details...</p>
+          <p>Loading company…</p>
         </div>
-      </div>
+      </section>
     )
   }
 
-  /* ================= ERROR STATE ================= */
-  if (companyError && !displayCompany) {
+  if (error || !company) {
     return (
-      <div className="companies-content">
-        <div className="details-header-nav">
-          <button className="back-button" onClick={onBack}>
-            ← Back to Companies
-          </button>
-        </div>
-        <div className="companies-error">
-          <div className="error-icon">!</div>
+      <section className="dashboard-content">
+        <button
+          type="button"
+          className="back-button"
+          onClick={() => navigate('/admin/companies')}
+        >
+          <ArrowLeft size={15} aria-hidden="true" />
+          Back to Companies
+        </button>
+
+        <div className="companies-error" role="alert">
           <h3>Failed to Load Company</h3>
-          <p>{companyError}</p>
-          <button className="retry-button" onClick={onBack}>
-            Back to Companies List
+          <p>{error ?? 'Company data is unavailable.'}</p>
+
+          <button
+            type="button"
+            className="retry-button"
+            onClick={() => void load()}
+          >
+            Retry
           </button>
         </div>
-      </div>
+      </section>
     )
   }
+
+  const tabs: Array<[Tab, string]> = [
+    ['overview', 'Overview'],
+    ['repositories', `Repositories ${repositories.length}`],
+    ['users', `Users ${users.length}`],
+    ['jobs', `Analysis Jobs ${jobs.length}`],
+  ]
 
   return (
-    <div className="companies-content">
-      {/* Top Back Navigation */}
-      <div className="details-header-nav">
-        <button className="back-button" onClick={onBack}>
-          ← Back to Companies
-        </button>
-      </div>
+    <section className="dashboard-content companies-content">
+      <button
+        type="button"
+        className="back-button"
+        onClick={() => navigate('/admin/companies')}
+      >
+        <ArrowLeft size={15} aria-hidden="true" />
+        Back to Companies
+      </button>
 
-      {/* Hero Header */}
       <div className="company-details-hero">
         <div className="hero-main-info">
           <div className="company-avatar-large">
-            {(displayCompany?.companyName || 'C').charAt(0).toUpperCase()}
+            {company.companyName[0]?.toUpperCase() ?? '?'}
           </div>
+
           <div>
-            <div className="hero-title-row">
-              <h1>{displayCompany?.companyName}</h1>
-              <span className="org-badge">
-                {extractOrgName(displayCompany?.githubOrganizationUrl)}
-              </span>
-            </div>
+            <h1>{company.companyName}</h1>
             <p className="hero-subtitle">
-              ID: #{companyId} • Created {formatDate(displayCompany?.createdAt)}
+              ID: #{company.companyId} · Created{' '}
+              {formatDate(company.createdAt)}
             </p>
           </div>
         </div>
 
-        <div className="hero-actions">
-          {displayCompany?.githubOrganizationUrl && (
-            <a
-              href={displayCompany.githubOrganizationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="github-org-link"
-            >
-              <span>GitHub Org ↗</span>
-            </a>
-          )}
-        </div>
+        {company.githubOrganizationUrl && (
+          <a
+            className="github-org-link"
+            href={company.githubOrganizationUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub Organization
+            <ExternalLink size={14} aria-hidden="true" />
+          </a>
+        )}
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="company-details-tabs">
-        <button
-          className={`tab-item ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          Overview
-        </button>
-        <button
-          className={`tab-item ${activeTab === 'repositories' ? 'active' : ''}`}
-          onClick={() => setActiveTab('repositories')}
-        >
-          Repositories <span className="tab-badge">{totalReposCount}</span>
-        </button>
-        <button
-          className={`tab-item ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => setActiveTab('users')}
-        >
-          Users <span className="tab-badge">{totalMembersCount}</span>
-        </button>
-        <button
-          className={`tab-item ${activeTab === 'jobs' ? 'active' : ''}`}
-          onClick={() => setActiveTab('jobs')}
-        >
-          Analysis Jobs <span className="tab-badge">{jobs.length}</span>
-        </button>
+      <div
+        className="company-details-tabs"
+        role="tablist"
+        aria-label="Company details"
+      >
+        {tabs.map(([value, label]) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            key={value}
+            className={`tab-item ${tab === value ? 'active' : ''}`}
+            onClick={() => selectTab(value)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Tab Content: Overview */}
-      {activeTab === 'overview' && (
+      {tab === 'overview' && (
         <div className="details-tab-content">
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon-wrapper">
-                <span className="stat-icon">📦</span>
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{totalReposCount}</span>
-                <span className="stat-label">Total Repositories</span>
-              </div>
+              <GitBranch aria-hidden="true" />
+              <div className="stat-value">{repositories.length}</div>
+              <div className="stat-title">Repositories</div>
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon-wrapper">
-                <span className="stat-icon">👥</span>
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{totalMembersCount}</span>
-                <span className="stat-label">Total Members</span>
-              </div>
+              <Users aria-hidden="true" />
+              <div className="stat-value">{users.length}</div>
+              <div className="stat-title">Users</div>
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon-wrapper">
-                <span className="stat-icon">⚙</span>
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{loadingJobs ? '...' : jobs.length}</span>
-                <span className="stat-label">Analysis Jobs</span>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon-wrapper">
-                <span className="stat-icon">📅</span>
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{formatDate(displayCompany?.createdAt)}</span>
-                <span className="stat-label">Registration Date</span>
-              </div>
+              <Building2 aria-hidden="true" />
+              <div className="stat-value">{jobs.length}</div>
+              <div className="stat-title">Analysis Jobs</div>
             </div>
           </div>
 
-          <div className="dashboard-card" style={{ marginTop: '20px' }}>
-            <div className="card-header">
-              <div>
-                <h2>Company Overview</h2>
-                <p>Super Admin and Organization metadata</p>
-              </div>
-            </div>
+          <div className="dashboard-card company-metadata">
+            <h2>Company Metadata</h2>
 
-            <div className="info-grid">
-              <div className="info-item">
-                <span className="info-label">Super Admin / Owner</span>
-                <span className="info-value">
-                  <strong>{ownerName}</strong>
-                </span>
-              </div>
+            <p>
+              <strong>Owner:</strong>{' '}
+              {company.superAdminName || '—'}
+            </p>
 
-              <div className="info-item">
-                <span className="info-label">Super Admin Email</span>
-                <span className="info-value">{ownerEmail}</span>
-              </div>
-
-              <div className="info-item">
-                <span className="info-label">GitHub Organization URL</span>
-                <span className="info-value">
-                  {displayCompany?.githubOrganizationUrl ? (
-                    <a
-                      href={displayCompany.githubOrganizationUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-link"
-                    >
-                      {displayCompany.githubOrganizationUrl} ↗
-                    </a>
-                  ) : (
-                    '—'
-                  )}
-                </span>
-              </div>
-
-              <div className="info-item">
-                <span className="info-label">Company ID</span>
-                <span className="info-value">#{companyId}</span>
-              </div>
-            </div>
+            <p>
+              <strong>GitHub:</strong>{' '}
+              {company.githubOrganizationUrl || '—'}
+            </p>
           </div>
         </div>
       )}
 
-      {/* Tab Content: Repositories */}
-      {activeTab === 'repositories' && (
-        <div className="details-tab-content">
-          <div className="dashboard-card">
-            <div className="card-header">
-              <div>
-                <h2>Connected Repositories</h2>
-                <p>Repositories monitored under {displayCompany?.companyName}</p>
-              </div>
-              <span className="count-pill">{repositories.length} Repos</span>
-            </div>
+      {tab === 'repositories' && (
+        <DataTable
+          empty="No repositories connected"
+          rowCount={repositories.length}
+        >
+          <thead>
+            <tr>
+              <th>Repository</th>
+              <th>URL</th>
+              <th>Default Branch</th>
+              <th>Added</th>
+            </tr>
+          </thead>
 
-            {loadingRepos ? (
-              <div className="companies-loading" role="status" style={{ minHeight: '200px' }}>
-                <div className="loading-spinner" />
-                <p>Loading repositories...</p>
-              </div>
-            ) : reposError ? (
-              <div className="companies-error" style={{ minHeight: '200px' }}>
-                <div className="error-icon">!</div>
-                <h3>Failed to Load Repositories</h3>
-                <p>{reposError}</p>
-              </div>
-            ) : repositories.length === 0 ? (
-              <div className="companies-empty" style={{ minHeight: '200px' }}>
-                <div className="empty-icon">📦</div>
-                <h3>No Repositories Linked</h3>
-                <p>This company does not have any connected repositories yet.</p>
-              </div>
-            ) : (
-              <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Company details table">
-                <table className="companies-table">
-                  <thead>
-                    <tr>
-                      <th>Repository Name</th>
-                      <th>GitHub URL</th>
-                      <th>Default Branch</th>
-                      <th>Added Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {repositories.map((repo) => (
-                      <tr key={repo.repositoryId || repo.githubRepositoryId}>
-                        <td>
-                          <div className="company-name-cell">
-                            <span className="repo-icon">📦</span>
-                            <span>{repo.repositoryName}</span>
-                          </div>
-                        </td>
-                        <td>
-                          {repo.repositoryUrl ? (
-                            <a
-                              href={repo.repositoryUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-link"
-                            >
-                              {repo.repositoryUrl} ↗
-                            </a>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td>
-                          <span className="branch-badge">
-                            {repo.defaultBranch || 'main'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="date-text">
-                            {formatDate(repo.createdAt)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+          <tbody>
+            {repositories.map((repository) => (
+              <tr key={repository.repositoryId}>
+                <td>
+                  <strong>{repository.repositoryName}</strong>
+                </td>
+
+                <td>
+                  <a
+                    href={repository.repositoryUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open repository
+                  </a>
+                </td>
+
+                <td>
+                  <span className="org-badge">
+                    {repository.defaultBranch || 'main'}
+                  </span>
+                </td>
+
+                <td>{formatDate(repository.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
-      {/* Tab Content: Users */}
-      {activeTab === 'users' && (
-        <div className="details-tab-content">
-          <div className="dashboard-card">
-            <div className="card-header">
-              <div>
-                <h2>Company Users</h2>
-                <p>Users registered under {displayCompany?.companyName}</p>
-              </div>
-              <span className="count-pill">{users.length} Users</span>
-            </div>
+      {tab === 'users' && (
+        <DataTable
+          empty="No users associated"
+          rowCount={users.length}
+        >
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>GitHub</th>
+              <th>Role</th>
+            </tr>
+          </thead>
 
-            {loadingUsers ? (
-              <div className="companies-loading" role="status" style={{ minHeight: '200px' }}>
-                <div className="loading-spinner" />
-                <p>Loading company users...</p>
-              </div>
-            ) : usersError ? (
-              <div className="companies-error" style={{ minHeight: '200px' }}>
-                <div className="error-icon">!</div>
-                <h3>Failed to Load Users</h3>
-                <p>{usersError}</p>
-              </div>
-            ) : users.length === 0 ? (
-              <div className="companies-empty" style={{ minHeight: '200px' }}>
-                <div className="empty-icon">👥</div>
-                <h3>No Users Found</h3>
-                <p>No members or super admins are currently associated with this company.</p>
-              </div>
-            ) : (
-              <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Company details table">
-                <table className="companies-table">
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Email</th>
-                      <th>GitHub Username</th>
-                      <th>Role</th>
-                      <th>Joined Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <tr key={user.userId}>
-                        <td>
-                          <div className="company-name-cell">
-                            <div className="company-avatar">
-                              {getUserInitials(user)}
-                            </div>
-                            <div className="user-name-wrapper">
-                              <strong>{getUserFullName(user)}</strong>
-                              <small className="user-id-sub">ID: #{user.userId}</small>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="user-email-text">{user.email || '—'}</span>
-                        </td>
-                        <td>
-                          {user.githubUsername ? (
-                            <span className="github-user-badge">
-                              @{user.githubUsername}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className={`role-badge ${
-                              user.companyRole === 'Super Admin'
-                                ? 'role-super-admin'
-                                : 'role-member'
-                            }`}
-                          >
-                            {user.companyRole}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="date-text">
-                            {formatDate(user.createdAt)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.userId}>
+                <td>
+                  <strong>
+                    {`${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+                      user.email}
+                  </strong>
+                </td>
+
+                <td>{user.email}</td>
+
+                <td>
+                  {user.githubUsername
+                    ? `@${user.githubUsername}`
+                    : '—'}
+                </td>
+
+                <td>
+                  {user.affiliations.length > 0
+                    ? user.affiliations.map((affiliation) => (
+                        <span
+                          className="role-badge role-member"
+                          key={affiliation.companyId}
+                        >
+                          {affiliation.role}
+                        </span>
+                      ))
+                    : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
-      {/* Tab Content: Analysis Jobs */}
-      {activeTab === 'jobs' && (
-        <div className="details-tab-content">
-          <div className="dashboard-card">
-            <div className="card-header">
-              <div>
-                <h2>Company Analysis Jobs</h2>
-                <p>Technical debt analysis execution history for {displayCompany?.companyName}</p>
-              </div>
-              <span className="count-pill">{jobs.length} Jobs</span>
-            </div>
+      {tab === 'jobs' && (
+        <DataTable
+          empty="No analysis jobs"
+          rowCount={jobs.length}
+        >
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Repository</th>
+              <th>Status</th>
+              <th>Started</th>
+              <th>Classes</th>
+            </tr>
+          </thead>
 
-            {loadingJobs ? (
-              <div className="companies-loading" role="status" style={{ minHeight: '200px' }}>
-                <div className="loading-spinner" />
-                <p>Loading analysis jobs...</p>
-              </div>
-            ) : jobsError ? (
-              <div className="companies-error" style={{ minHeight: '200px' }}>
-                <div className="error-icon">!</div>
-                <h3>Failed to Load Analysis Jobs</h3>
-                <p>{jobsError}</p>
-              </div>
-            ) : jobs.length === 0 ? (
-              <div className="companies-empty" style={{ minHeight: '200px' }}>
-                <div className="empty-icon">⚙</div>
-                <h3>No Analysis Jobs Found</h3>
-                <p>This company has not executed any analysis jobs yet.</p>
-              </div>
-            ) : (
-              <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Company details table">
-                <table className="companies-table">
-                  <thead>
-                    <tr>
-                      <th>Job ID</th>
-                      <th>Repository</th>
-                      <th>Branch</th>
-                      <th>Status</th>
-                      <th>Started By</th>
-                      <th>Started At</th>
-                      <th>Completed At</th>
-                      <th>Classes Analyzed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobs.map((job) => (
-                      <tr key={job.analysisId}>
-                        <td>
-                          <strong>#{job.analysisId}</strong>
-                        </td>
-                        <td>
-                          <div className="company-name-cell">
-                            <span className="repo-icon">📦</span>
-                            <span>{job.repositoryName || `Repo #${job.repositoryId}`}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="branch-badge">
-                            {job.branch || 'main'}
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className={`status-badge status-${(
-                              job.status || ''
-                            ).toLowerCase()}`}
-                          >
-                            {job.status}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="user-email-text">
-                            {job.startedByName || (job.startedByUserId ? `User #${job.startedByUserId}` : 'System')}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="date-text">{formatDate(job.startedAt)}</span>
-                        </td>
-                        <td>
-                          <span className="date-text">{formatDate(job.completedAt)}</span>
-                        </td>
-                        <td>
-                          <span className="count-pill">
-                            {job.totalClassesAnalyzed ?? 0}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <tbody>
+            {jobs.map((job) => (
+              <tr
+                className="clickable-row"
+                key={job.analysisId}
+                tabIndex={0}
+                onClick={() => openJob(job.analysisId)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    openJob(job.analysisId)
+                  }
+                }}
+              >
+                <td>
+                  <strong>#{job.analysisId}</strong>
+                </td>
+
+                <td>{job.repositoryName || '—'}</td>
+
+                <td>
+                  <span
+                    className={`status-badge status-${job.status.toLowerCase()}`}
+                  >
+                    {job.status}
+                  </span>
+                </td>
+
+                <td>{formatDate(job.startedAt, true)}</td>
+                <td>{job.totalClassesAnalyzed ?? 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
+      )}
+    </section>
+  )
+}
+
+interface DataTableProps {
+  children: ReactNode
+  empty: string
+  rowCount: number
+}
+
+function DataTable({
+  children,
+  empty,
+  rowCount,
+}: DataTableProps) {
+  return (
+    <div className="dashboard-card details-tab-content">
+      {rowCount > 0 ? (
+        <div className="companies-table-wrapper">
+          <table className="companies-table">{children}</table>
+        </div>
+      ) : (
+        <div className="companies-empty">
+          <p>{empty}</p>
         </div>
       )}
     </div>

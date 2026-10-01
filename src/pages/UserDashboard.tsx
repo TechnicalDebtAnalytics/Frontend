@@ -1704,9 +1704,12 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
+      const effectiveInstId = company.githubInstallationId || installationIdFromUrl;
+      const queryParam = effectiveInstId ? `?installationId=${effectiveInstId}` : "";
+
       // 1. Fetch live contributors from GitHub
       const contribsPromise = fetch(
-        `${API_BASE_URL}/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors`,
+        `${API_BASE_URL}/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors${queryParam}`,
         { headers }
       );
 
@@ -2141,18 +2144,13 @@ export default function UserDashboard() {
 
                       // 10-minute expiry calculation for completed, cancelled, or failed status
                       let isExpired = false;
-                      let remainingSeconds = 0;
                       if (currentStatus?.completedAt && (currentStatus.status === "COMPLETED" || currentStatus.status === "FAILED" || currentStatus.status === "CANCELLED")) {
                         const completedTime = (currentStatus as any).completedTimestamp || parseServerDate(currentStatus.completedAt);
                         const elapsed = currentTime - completedTime;
                         if (elapsed >= TEN_MINUTES_MS || elapsed < 0) {
                           if (elapsed >= TEN_MINUTES_MS) {
                             isExpired = true;
-                          } else {
-                            remainingSeconds = Math.floor(TEN_MINUTES_MS / 1000);
                           }
-                        } else {
-                          remainingSeconds = Math.max(0, Math.floor((TEN_MINUTES_MS - elapsed) / 1000));
                         }
                       }
 
@@ -2237,13 +2235,12 @@ export default function UserDashboard() {
                                     <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
                                     <span>Analysis Succeeded</span>
                                   </div>
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                                    <Clock size={10} />
-                                    {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s left
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                                    Completed
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-emerald-300/90 leading-relaxed">
-                                  {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking. Results remain available for 10 minutes.
+                                  {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking.
                                 </p>
                               </div>
                             ) : isCancelled ? (
@@ -2252,9 +2249,8 @@ export default function UserDashboard() {
                                   <AlertCircle size={15} className="shrink-0 text-amber-400" />
                                   <span>{currentStatus?.message || "Analysis was cancelled by user."}</span>
                                 </div>
-                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
-                                  <Clock size={10} />
-                                  {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                  Cancelled
                                 </span>
                               </div>
                             ) : isFailed ? (
@@ -2263,9 +2259,8 @@ export default function UserDashboard() {
                                   <AlertCircle size={15} className="shrink-0" />
                                   <span>{currentStatus?.message || "Analysis failed to complete. You can retry starting the job."}</span>
                                 </div>
-                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 shrink-0">
-                                  <Clock size={10} />
-                                  {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 shrink-0">
+                                  Failed
                                 </span>
                               </div>
                             ) : (
@@ -2426,6 +2421,51 @@ export default function UserDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* GitHub App Connection Banner for Existing Company */}
+            {manageCompany?.githubInstallationId ? (
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-400/25 flex items-center justify-between text-xs text-emerald-300">
+                <div className="flex items-center gap-2">
+                  <Check size={16} className="text-emerald-400 shrink-0" />
+                  <span>
+                    <strong>GitHub App Connected</strong> (Installation ID: <code>{manageCompany.githubInstallationId}</code>). Organization requests benefit from dedicated rate limits.
+                  </span>
+                </div>
+              </div>
+            ) : installationIdFromUrl ? (
+              <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-400/25 flex items-center justify-between text-xs text-indigo-300">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-indigo-400 shrink-0" />
+                  <span>
+                    New GitHub App installation detected (ID: <code>{installationIdFromUrl}</code>). Click to link it to <strong>{manageCompany?.companyName}</strong>.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => manageCompany && handleLinkInstallation(manageCompany.companyId, installationIdFromUrl)}
+                  disabled={linkingInstallation}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shrink-0"
+                >
+                  {linkingInstallation ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  Link App Now
+                </button>
+              </div>
+            ) : appInfo?.configured ? (
+              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={15} className="text-indigo-400 shrink-0" />
+                  <span>Install the DebtLens GitHub App for <strong>@{manageCompany?.githubOrganizationName}</strong> to unlock dedicated rate limits and seamless repository access.</span>
+                </div>
+                <a
+                  href={appInfo.installUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shrink-0"
+                >
+                  Install App <ArrowRight size={12} />
+                </a>
+              </div>
+            ) : null}
 
             {/* Feedback Banners */}
             {addReposError && (
