@@ -1701,12 +1701,12 @@ export default function UserDashboard() {
         } catch { }
       }
 
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const effectiveInstId = company.githubInstallationId || installationIdFromUrl;
+      const queryParam = effectiveInstId ? `?installationId=${effectiveInstId}` : "";
 
       // 1. Fetch live contributors from GitHub
       const contribsPromise = fetch(
-        `${API_BASE_URL}/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors`,
+        `${API_BASE_URL}/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors${queryParam}`,
         { headers }
       );
 
