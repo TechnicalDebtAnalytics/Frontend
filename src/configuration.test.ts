@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest'
 describe('CFG-06 frontend configuration contract', () => {
   it('defines required Auth0 variables and a configurable API base URL', () => {
     const frontendRoot = process.cwd()
-    const env = readFileSync(join(frontendRoot, '.env'), 'utf8')
+    const localEnvPath = join(frontendRoot, '.env')
+    const envPath = existsSync(localEnvPath)
+      ? localEnvPath
+      : join(frontendRoot, '.env.example')
+    const env = readFileSync(envPath, 'utf8')
     const keys = new Set(
       env
         .split(/\r?\n/)
@@ -25,7 +29,7 @@ describe('CFG-06 frontend configuration contract', () => {
 
     const sourceDirectory = join(frontendRoot, 'src')
     const applicationSource = readdirSync(sourceDirectory, { recursive: true, encoding: 'utf8' })
-      .filter((path) => typeof path === 'string' && path.endsWith('.tsx') && !path.endsWith('.test.tsx'))
+      .filter((path) => typeof path === 'string' && /\.tsx?$/.test(path) && !path.includes('.test.'))
       .map((path) => readFileSync(join(sourceDirectory, path), 'utf8'))
       .join('\n')
 
