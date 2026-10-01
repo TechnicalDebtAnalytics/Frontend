@@ -116,7 +116,7 @@ describe('DebtLens core UI flows', () => {
 
     expect(await screen.findByText('Registration successful! Redirecting to login...')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8080/api/registration/register',
+      '/api/registration/register',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

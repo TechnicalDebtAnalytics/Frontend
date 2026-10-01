@@ -1,298 +1,47 @@
-import { useEffect, useState } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
+import { useCallback, useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import { Activity, RefreshCw, Search } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { queryString, useAdminApi } from '../config/adminApi'
+import type { PagedResponse } from '../config/adminApi'
+import type { AnalysisJob } from './adminTypes'
+import { formatDate } from './adminTypes'
 
-export interface AnalysisJob {
-  analysisId: number
-  repositoryId: number
-  repositoryName: string
-  repositoryUrl: string
-  companyId?: number
-  companyName?: string
-  branch: string
-  startedByUserId?: number
-  startedByName?: string
-  status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
-  startedAt: string
-  completedAt?: string
-  totalClassesAnalyzed?: number
-}
-
-type StatusFilter = 'ALL' | 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+export type { AnalysisJob } from './adminTypes'
 
 export default function SystemAdminAnalysisJobs() {
-  const { getAccessTokenSilently } = useAuth0()
+  const api = useAdminApi(); const navigate = useNavigate(); const [params, setParams] = useSearchParams()
+  const [data, setData] = useState<PagedResponse<AnalysisJob> | null>(null); const [input, setInput] = useState(params.get('q') || '')
+  const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null); const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const page = Math.max(0, Number(params.get('page') || 0)); const q = params.get('q') || ''; const status = params.get('status') || ''
 
-  const [jobs, setJobs] = useState<AnalysisJob[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true); setError(null)
+    try { setData(await api<PagedResponse<AnalysisJob>>(`/admin/analysis-jobs?${queryString({ q, status, page, size: 20, sort: 'startedAt,desc' })}`)); setUpdatedAt(new Date()) }
+    catch (err) { setError(err instanceof Error ? err.message : 'Failed to load analysis jobs') }
+    finally { if (!quiet) setLoading(false) }
+  }, [api, page, q, status])
   useEffect(() => {
-    const loadJobs = async () => {
-      try {
-        setError(null)
-        const token = await getAccessTokenSilently()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load()
+  }, [load])
+  useEffect(() => {
+    if (!data?.content.some(job => job.status === 'QUEUED' || job.status === 'RUNNING')) return
+    const timer = window.setInterval(() => void load(true), 10_000)
+    return () => window.clearInterval(timer)
+  }, [data?.content, load])
 
-        const response = await fetch(
-          'http://localhost:8080/api/admin/analysis-jobs',
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error(`Failed to load analysis jobs: ${response.status}`)
-        }
-
-        const data: AnalysisJob[] = await response.json()
-        console.log('ADMIN GLOBAL ANALYSIS JOBS:', data)
-        setJobs(data)
-      } catch (err) {
-        console.error('Failed to load global analysis jobs:', err)
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'An unexpected error occurred'
-        )
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadJobs()
-  }, [getAccessTokenSilently])
-
-  const formatDate = (dateString?: string): string => {
-    if (!dateString) return '—'
-    try {
-      const date = new Date(dateString)
-      return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    } catch {
-      return dateString
-    }
-  }
-
-  const filteredJobs = jobs.filter((job) => {
-    if (statusFilter === 'ALL') return true
-    return job.status === statusFilter
-  })
-
-  /*
-   * ================= LOADING STATE =================
-   */
-  if (loading) {
-    return (
-      <div className="companies-content">
-        <div className="page-heading">
-          <div>
-            <h1>Analysis Jobs</h1>
-            <p>Monitor technical debt analysis tasks across all platform repositories.</p>
-          </div>
-        </div>
-
-        <div className="companies-loading" role="status">
-          <div className="loading-spinner" />
-          <p>Loading platform analysis jobs...</p>
-        </div>
-      </div>
-    )
-  }
-
-  /*
-   * ================= ERROR STATE =================
-   */
-  if (error) {
-    return (
-      <div className="companies-content">
-        <div className="page-heading">
-          <div>
-            <h1>Analysis Jobs</h1>
-            <p>Monitor technical debt analysis tasks across all platform repositories.</p>
-          </div>
-        </div>
-
-        <div className="companies-error">
-          <div className="error-icon">!</div>
-          <h3>Failed to Load Analysis Jobs</h3>
-          <p>{error}</p>
-          <button
-            className="retry-button"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  /*
-   * ================= EMPTY STATE =================
-   */
-  if (jobs.length === 0) {
-    return (
-      <div className="companies-content">
-        <div className="page-heading">
-          <div>
-            <h1>Analysis Jobs</h1>
-            <p>Monitor technical debt analysis tasks across all platform repositories.</p>
-          </div>
-        </div>
-
-        <div className="companies-empty">
-          <div className="empty-icon">◌</div>
-          <h3>No Analysis Jobs Found</h3>
-          <p>There are no analysis jobs registered on the DebtLens platform yet.</p>
-        </div>
-      </div>
-    )
-  }
-
-  /*
-   * ================= MAIN DATA VIEW =================
-   */
-  return (
-    <div className="companies-content">
-      <div className="page-heading">
-        <div>
-          <h1>Analysis Jobs</h1>
-          <p>Monitor technical debt analysis tasks across all platform repositories.</p>
-        </div>
-
-        <div className="companies-count">
-          <span className="count-badge">{filteredJobs.length}</span>
-          Total Filtered Jobs
-        </div>
-      </div>
-
-      {/* STATUS FILTER BAR */}
-      <div className="dashboard-card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary, #94a3b8)', marginRight: '0.5rem' }}>
-            Filter Status:
-          </span>
-
-          {(['ALL', 'QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'] as StatusFilter[]).map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`retry-button ${statusFilter === st ? 'active' : ''}`}
-              style={{
-                padding: '0.35rem 0.85rem',
-                fontSize: '0.8rem',
-                borderRadius: '6rem',
-                background: statusFilter === st ? 'var(--accent-primary, #6366f1)' : 'transparent',
-                color: statusFilter === st ? '#ffffff' : 'inherit',
-                border: '1px solid var(--border-color, #e2e8f0)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              {st} ({st === 'ALL' ? jobs.length : jobs.filter((j) => j.status === st).length})
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="dashboard-card">
-        <div className="card-header">
-          <div>
-            <h2>All Analysis Jobs</h2>
-            <p>Chronological analysis job executions ordered by newest first</p>
-          </div>
-        </div>
-
-        {filteredJobs.length === 0 ? (
-          <div className="companies-empty" style={{ padding: '3rem' }}>
-            <h3>No {statusFilter} Jobs</h3>
-            <p>There are no analysis jobs matching status "{statusFilter}".</p>
-          </div>
-        ) : (
-          <div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Analysis jobs table">
-            <table className="companies-table">
-              <thead>
-                <tr>
-                  <th>Job ID</th>
-                  <th>Company</th>
-                  <th>Repository</th>
-                  <th>Branch</th>
-                  <th>Status</th>
-                  <th>Started By</th>
-                  <th>Started At</th>
-                  <th>Completed At</th>
-                  <th>Classes</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredJobs.map((job) => (
-                  <tr key={job.analysisId}>
-                    <td>
-                      <strong>#{job.analysisId}</strong>
-                    </td>
-
-                    <td>
-                      <span className="date-text" style={{ fontWeight: 600, color: 'var(--dl-text)' }}>
-                        {job.companyName || '—'}
-                      </span>
-                    </td>
-
-                    <td>
-                      <div className="company-name-cell">
-                        <span style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>
-                          {job.repositoryName}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <span className="org-badge">{job.branch}</span>
-                    </td>
-
-                    <td>
-                      <span
-                        className={`status-badge status-${job.status ? job.status.toLowerCase() : 'queued'}`}
-                      >
-                        {job.status}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span className="user-email-text">
-                        {job.startedByName || 'System User'}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span className="date-text">{formatDate(job.startedAt)}</span>
-                    </td>
-
-                    <td>
-                      <span className="date-text">{formatDate(job.completedAt)}</span>
-                    </td>
-
-                    <td>
-                      <span className="count-pill">
-                        {job.totalClassesAnalyzed != null ? job.totalClassesAnalyzed : 0}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+  const update = (key: string, value: string, resetPage = true) => { const copy = new URLSearchParams(params); if (value) copy.set(key, value); else copy.delete(key); if (resetPage) copy.set('page', '0'); setParams(copy) }
+  const submit = (event: FormEvent) => { event.preventDefault(); update('q', input.trim()) }
+  return <section className="dashboard-content companies-content">
+    <div className="page-heading"><div><h1>Analysis Jobs</h1><p>Monitor analysis execution across the platform.</p></div><div className="heading-actions"><span className="last-updated">{updatedAt ? `Updated ${updatedAt.toLocaleTimeString()}` : 'Not updated'}</span><button className="view-button" onClick={() => void load()}><RefreshCw size={14} /> Refresh</button></div></div>
+    <form className="admin-filter-bar" onSubmit={submit}><Search size={16} /><input aria-label="Search analysis jobs" value={input} onChange={e => setInput(e.target.value)} placeholder="Search company or repository" />
+      <select aria-label="Filter status" value={status} onChange={e => update('status', e.target.value)}><option value="">All statuses</option>{['QUEUED','RUNNING','COMPLETED','FAILED','CANCELLED'].map(value => <option key={value}>{value}</option>)}</select><button type="submit">Search</button></form>
+    {loading ? <div className="companies-loading" role="status"><div className="loading-spinner" /><p>Loading analysis jobs…</p></div>
+      : error ? <div className="companies-error" role="alert"><h3>Failed to Load Analysis Jobs</h3><p>{error}</p><button className="retry-button" onClick={() => void load()}>Retry</button></div>
+      : !data?.content.length ? <div className="companies-empty"><Activity size={32} /><h3>No Analysis Jobs Found</h3><p>Try different filters.</p></div>
+      : <div className="dashboard-card"><div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Analysis jobs table"><table className="companies-table"><thead><tr><th>Job</th><th>Company</th><th>Repository</th><th>Branch</th><th>Status</th><th>Started By</th><th>Started</th><th>Completed</th><th>Classes</th></tr></thead><tbody>
+        {data.content.map(job => <tr key={job.analysisId} className="clickable-row" tabIndex={0} onClick={() => navigate(`/admin/jobs/${job.analysisId}`)} onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/jobs/${job.analysisId}`) }}><td><strong>#{job.analysisId}</strong></td><td>{job.companyName || '—'}</td><td>{job.repositoryName || '—'}</td><td><span className="org-badge">{job.branch || 'main'}</span></td><td><span className={`status-badge status-${job.status.toLowerCase()}`}>{job.status}</span></td><td>{job.startedByName || 'System'}</td><td>{formatDate(job.startedAt, true)}</td><td>{formatDate(job.completedAt, true)}</td><td><span className="count-pill">{job.totalClassesAnalyzed ?? 0}</span></td></tr>)}</tbody></table></div></div>}
+    {data && data.totalPages > 1 && <div className="admin-pagination"><button disabled={data.page === 0} onClick={() => update('page', String(data.page - 1), false)}>Previous</button><span>Page {data.page + 1} of {data.totalPages}</span><button disabled={data.page + 1 >= data.totalPages} onClick={() => update('page', String(data.page + 1), false)}>Next</button></div>}
+  </section>
 }

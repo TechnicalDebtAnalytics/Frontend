@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import UserDashboard from './pages/UserDashboard'
 import SystemAdminDashboard from './pages/SystemAdminDashboard'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 type Page = 'login' | 'register'
 
@@ -105,7 +106,14 @@ export default function App() {
      * SYSTEM ADMIN
      */
     if (userRole === 'SYSTEM_ADMIN') {
-      return <SystemAdminDashboard />
+      return (
+        <BrowserRouter>
+          <Routes>
+            <Route path="/admin/*" element={<SystemAdminDashboard />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Routes>
+        </BrowserRouter>
+      )
     }
 
     /*
