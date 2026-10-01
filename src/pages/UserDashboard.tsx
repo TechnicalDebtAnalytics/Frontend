@@ -1701,6 +1701,9 @@ export default function UserDashboard() {
         } catch { }
       }
 
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const effectiveInstId = company.githubInstallationId || installationIdFromUrl;
       const queryParam = effectiveInstId ? `?installationId=${effectiveInstId}` : "";
 
