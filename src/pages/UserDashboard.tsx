@@ -39,6 +39,7 @@ import {
   Maximize2,
   Minimize2,
   Radio,
+  StopCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 
@@ -266,6 +267,7 @@ export default function UserDashboard() {
 
   // ── Analysis Execution State ──
   const [analyzingRepoIds, setAnalyzingRepoIds] = useState<Record<number, boolean>>({});
+  const [cancellingRepoIds, setCancellingRepoIds] = useState<Record<number, boolean>>({});
   const [analysisStatusMap, setAnalysisStatusMap] = useState<Record<number, {
     analysisId?: number;
     status?: string;
@@ -698,6 +700,59 @@ export default function UserDashboard() {
       });
     } finally {
       setAnalyzingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
+    }
+  };
+
+  // Cancel ongoing analysis for a repository
+  const handleCancelAnalysis = async (repo: CompanyRepoItem) => {
+    setCancellingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: true }));
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const currentAnalysisId = analysisStatusMap[repo.repositoryId]?.analysisId;
+      const url = currentAnalysisId
+        ? `${API_BASE_URL}/analysis/${currentAnalysisId}/cancel`
+        : `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis/cancel`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to cancel analysis job");
+      }
+
+      setAnalyzingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
+      setAnalysisStatusMap((prev) => ({
+        ...prev,
+        [repo.repositoryId]: {
+          analysisId: currentAnalysisId,
+          status: "CANCELLED",
+          stage: "CANCELLED",
+          message: "Analysis was cancelled by user.",
+          completedAt: new Date().toISOString(),
+        },
+      }));
+
+      setInvitationActionMsg({
+        type: "success",
+        text: `Analysis for '${repo.repositoryName}' has been cancelled.`,
+      });
+    } catch (err: any) {
+      setInvitationActionMsg({
+        type: "error",
+        text: err.message || `Failed to cancel analysis for ${repo.repositoryName}`,
+      });
+    } finally {
+      setCancellingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
     }
   };
 
@@ -1746,12 +1801,13 @@ export default function UserDashboard() {
                     .filter(r => r.repositoryName.toLowerCase().includes(analysisRepoSearch.toLowerCase()))
                     .map((repo) => {
                       const isAnalyzing = !!analyzingRepoIds[repo.repositoryId];
+                      const isCancelling = !!cancellingRepoIds[repo.repositoryId];
                       const currentStatus = analysisStatusMap[repo.repositoryId];
 
-                      // 10-minute expiry calculation for completed or failed status
+                      // 10-minute expiry calculation for completed, cancelled, or failed status
                       let isExpired = false;
                       let remainingSeconds = 0;
-                      if (currentStatus?.completedAt && (currentStatus.status === "COMPLETED" || currentStatus.status === "FAILED")) {
+                      if (currentStatus?.completedAt && (currentStatus.status === "COMPLETED" || currentStatus.status === "FAILED" || currentStatus.status === "CANCELLED")) {
                         const elapsed = currentTime - new Date(currentStatus.completedAt).getTime();
                         if (elapsed >= TEN_MINUTES_MS) {
                           isExpired = true;
@@ -1761,6 +1817,7 @@ export default function UserDashboard() {
                       }
 
                       const isCompleted = !isExpired && currentStatus?.status === "COMPLETED";
+                      const isCancelled = !isExpired && currentStatus?.status === "CANCELLED";
                       const isFailed = !isExpired && currentStatus?.status === "FAILED";
                       const isQueuedOrRunning = isAnalyzing || (!isExpired && currentStatus && (currentStatus.status === "QUEUED" || currentStatus.status === "PROCESSING" || currentStatus.status === "RUNNING"));
 
@@ -1849,6 +1906,17 @@ export default function UserDashboard() {
                                   {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking. Results remain available for 10 minutes.
                                 </p>
                               </div>
+                            ) : isCancelled ? (
+                              <div className="my-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle size={15} className="shrink-0 text-amber-400" />
+                                  <span>{currentStatus?.message || "Analysis was cancelled by user."}</span>
+                                </div>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                  <Clock size={10} />
+                                  {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s
+                                </span>
+                              </div>
                             ) : isFailed ? (
                               <div className="my-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
@@ -1870,6 +1938,23 @@ export default function UserDashboard() {
 
                           {/* Action Buttons */}
                           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                            {isQueuedOrRunning && (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelAnalysis(repo)}
+                                disabled={isCancelling}
+                                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 shadow-sm"
+                                title="Stop ongoing analysis"
+                              >
+                                {isCancelling ? (
+                                  <Loader2 size={13} className="animate-spin text-rose-400" />
+                                ) : (
+                                  <StopCircle size={13} className="text-rose-400" />
+                                )}
+                                <span>{isCancelling ? "Cancelling..." : "Cancel Analysis"}</span>
+                              </button>
+                            )}
+
                             {isCompleted && currentStatus?.analysisId && (
                               <button
                                 type="button"
@@ -1887,13 +1972,15 @@ export default function UserDashboard() {
                               disabled={isQueuedOrRunning}
                               className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-sm disabled:opacity-50 ${isCompleted
                                   ? "bg-card border border-border hover:bg-muted text-foreground"
-                                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:scale-[1.02] active:scale-95"
+                                  : isQueuedOrRunning
+                                    ? "flex-1 bg-indigo-600/40 text-indigo-200 cursor-not-allowed border border-indigo-500/20"
+                                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:scale-[1.02] active:scale-95"
                                 }`}
                             >
                               {isQueuedOrRunning ? (
                                 <>
                                   <Loader2 size={13} className="animate-spin" />
-                                  <span>Analyzing...</span>
+                                  <span>Analyzing in Progress...</span>
                                 </>
                               ) : isCompleted ? (
                                 <>
@@ -1904,6 +1991,11 @@ export default function UserDashboard() {
                                 <>
                                   <Play size={12} className="fill-current" />
                                   <span>Retry Analysis</span>
+                                </>
+                              ) : isCancelled ? (
+                                <>
+                                  <Play size={12} className="fill-current" />
+                                  <span>Start Analysis</span>
                                 </>
                               ) : (
                                 <>
