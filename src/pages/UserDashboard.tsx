@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   Building2,
@@ -279,6 +279,12 @@ export default function UserDashboard() {
     startedAt?: string;
   }>>({});
 
+  // ── In-Memory Fast Caches for Instant 0ms Navigation / Repo Switching ──
+  const repoContributorsCacheRef = useRef<Record<number, { contributors: RepoContributor[]; invitations: InvitationResponse[]; timestamp: number }>>({});
+  const companyReposCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; timestamp: number }>>({});
+  const companyPastAnalysesCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; analysisList: PastAnalysisJob[]; timestamp: number }>>({});
+  const companyAnalysisWorkspaceCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; statusMap: Record<number, any>; timestamp: number }>>({});
+
   // 10-Minute Results Retention Window for Completed Analyses
   const TEN_MINUTES_MS = 10 * 60 * 1000;
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
@@ -513,11 +519,20 @@ export default function UserDashboard() {
     setAnalysisPageCompany(company);
     setAnalysisPageRole(role);
     setAnalysisRepoSearch("");
-    setLoadingActiveCompanyRepos(true);
 
     try {
       sessionStorage.setItem("debtlens_active_analysis_company", JSON.stringify({ company, role }));
     } catch { }
+
+    // 0ms Instant Loading from Fast In-Memory Cache if available
+    const cachedWorkspace = companyAnalysisWorkspaceCacheRef.current[company.companyId];
+    if (cachedWorkspace && cachedWorkspace.repos.length > 0) {
+      setActiveCompanyRepos(cachedWorkspace.repos);
+      setAnalysisStatusMap(cachedWorkspace.statusMap);
+      setLoadingActiveCompanyRepos(false);
+    } else {
+      setLoadingActiveCompanyRepos(true);
+    }
 
     try {
       let token = "";
@@ -538,7 +553,7 @@ export default function UserDashboard() {
         const data: CompanyRepoItem[] = await reposRes.json();
         reposList = Array.isArray(data) ? data.filter(Boolean) : [];
         setActiveCompanyRepos(reposList);
-      } else {
+      } else if (!cachedWorkspace) {
         setActiveCompanyRepos([]);
       }
 
@@ -551,7 +566,7 @@ export default function UserDashboard() {
         completedAt?: string;
         completedTimestamp?: number;
         startedAt?: string;
-      }> = {};
+      }> = { ...(cachedWorkspace ? cachedWorkspace.statusMap : {}) };
 
       // 1. First populate from localStorage cache (if within 10 minutes)
       for (const repo of reposList) {
@@ -606,9 +621,18 @@ export default function UserDashboard() {
         }
       }
       setAnalysisStatusMap(initialStatusMap);
+
+      // Save to fast in-memory cache
+      companyAnalysisWorkspaceCacheRef.current[company.companyId] = {
+        repos: reposList,
+        statusMap: initialStatusMap,
+        timestamp: Date.now(),
+      };
     } catch (err) {
       console.warn("Could not fetch company repositories or analysis for workspace:", err);
-      setActiveCompanyRepos([]);
+      if (!cachedWorkspace) {
+        setActiveCompanyRepos([]);
+      }
     } finally {
       setLoadingActiveCompanyRepos(false);
     }
@@ -622,15 +646,26 @@ export default function UserDashboard() {
     } catch { }
   };
 
-  // Open Full Page Past Analyses Workspace
+  // Open Full Page Past Analyses Workspace (with 0ms In-Memory SWR Caching)
   const openPastAnalysesPage = async (company: CompanyAdminItem, role: "admin" | "member" = "admin", initialRepoId?: number) => {
     setPastAnalysesCompany(company);
     setPastAnalysesRole(role);
-    setLoadingPastAnalyses(true);
     setPastAnalysesError("");
     setPastAnalysesSearch("");
     setSelectedPastRepoId(initialRepoId ?? "ALL");
     setPastAnalysesStatusFilter("ALL");
+
+    // 0ms Instant Loading from Fast In-Memory Cache if available
+    const cached = companyPastAnalysesCacheRef.current[company.companyId];
+    if (cached) {
+      setPastAnalysesRepos(cached.repos);
+      setPastAnalysesList(cached.analysisList);
+      setLoadingPastAnalyses(false);
+    } else {
+      setLoadingPastAnalyses(true);
+      setPastAnalysesRepos([]);
+      setPastAnalysesList([]);
+    }
 
     try {
       let token = "";
@@ -646,24 +681,37 @@ export default function UserDashboard() {
         fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
       ]);
 
+      let reposData: CompanyRepoItem[] = [];
       if (reposRes.ok) {
-        const reposData = await reposRes.json();
-        setPastAnalysesRepos(Array.isArray(reposData) ? reposData.filter(Boolean) : []);
-      } else {
+        const data = await reposRes.json();
+        reposData = Array.isArray(data) ? data.filter(Boolean) : [];
+        setPastAnalysesRepos(reposData);
+      } else if (!cached) {
         setPastAnalysesRepos([]);
       }
 
+      let analysisData: PastAnalysisJob[] = [];
       if (analysisRes.ok) {
-        const analysisData = await analysisRes.json();
-        setPastAnalysesList(Array.isArray(analysisData) ? analysisData.filter(Boolean) : []);
-      } else {
+        const data = await analysisRes.json();
+        analysisData = Array.isArray(data) ? data.filter(Boolean) : [];
+        setPastAnalysesList(analysisData);
+      } else if (!cached) {
         setPastAnalysesList([]);
       }
+
+      // Update in-memory cache
+      companyPastAnalysesCacheRef.current[company.companyId] = {
+        repos: reposData,
+        analysisList: analysisData,
+        timestamp: Date.now(),
+      };
     } catch (err: any) {
       console.error("Failed to load past analyses:", err);
-      setPastAnalysesError(err.message || "Could not fetch past analyses.");
-      setPastAnalysesRepos([]);
-      setPastAnalysesList([]);
+      if (!cached) {
+        setPastAnalysesError(err.message || "Could not fetch past analyses.");
+        setPastAnalysesRepos([]);
+        setPastAnalysesList([]);
+      }
     } finally {
       setLoadingPastAnalyses(false);
     }
@@ -1414,10 +1462,9 @@ export default function UserDashboard() {
     }
   };
 
-  // ── Invite Contributors Modal Actions ──
+  // ── Invite Contributors Modal Actions (with Instant 0ms SWR Caching) ──
   const openInviteModal = async (company: CompanyAdminItem) => {
     setInviteCompany(company);
-    setCompanyRepos([]);
     setSelectedRepoForInvite(null);
     setRepoContributorsList([]);
     setExistingInvitations([]);
@@ -1425,7 +1472,17 @@ export default function UserDashboard() {
     setContributorSearchQuery("");
     setInviteError("");
     setInviteSuccess(null);
-    setLoadingCompanyReposForInvite(true);
+
+    // Fast In-Memory Cache Check for Company Repos
+    const cachedCompanyRepos = companyReposCacheRef.current[company.companyId];
+    if (cachedCompanyRepos && cachedCompanyRepos.repos.length > 0) {
+      setCompanyRepos(cachedCompanyRepos.repos);
+      setLoadingCompanyReposForInvite(false);
+      loadRepoContributorsAndInvites(company, cachedCompanyRepos.repos[0]);
+    } else {
+      setCompanyRepos([]);
+      setLoadingCompanyReposForInvite(true);
+    }
 
     try {
       let token = "";
@@ -1439,9 +1496,14 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
       if (res.ok) {
         const repos: CompanyRepoItem[] = await res.json();
-        setCompanyRepos(repos);
-        if (repos.length > 0) {
-          loadRepoContributorsAndInvites(company, repos[0], token);
+        const validRepos = Array.isArray(repos) ? repos : [];
+        companyReposCacheRef.current[company.companyId] = {
+          repos: validRepos,
+          timestamp: Date.now(),
+        };
+        setCompanyRepos(validRepos);
+        if (!cachedCompanyRepos && validRepos.length > 0) {
+          loadRepoContributorsAndInvites(company, validRepos[0], token);
         }
       }
     } catch (err) {
@@ -1460,7 +1522,18 @@ export default function UserDashboard() {
     setSelectedContributorsForInvite({});
     setInviteError("");
     setInviteSuccess(null);
-    setLoadingRepoContributors(true);
+
+    // Fast In-Memory Cache Check for instant 0ms repository switching
+    const cached = repoContributorsCacheRef.current[repo.repositoryId];
+    if (cached) {
+      setRepoContributorsList(cached.contributors);
+      setExistingInvitations(cached.invitations);
+      setLoadingRepoContributors(false);
+    } else {
+      setRepoContributorsList([]);
+      setExistingInvitations([]);
+      setLoadingRepoContributors(true);
+    }
 
     try {
       let token = tokenParam;
@@ -1487,19 +1560,28 @@ export default function UserDashboard() {
 
       const [contribsRes, invitesRes] = await Promise.all([contribsPromise, invitesPromise]);
 
+      let contribsData: RepoContributor[] = [];
       if (contribsRes.ok) {
-        const contribsData: RepoContributor[] = await contribsRes.json();
+        contribsData = await contribsRes.json();
         setRepoContributorsList(contribsData);
-      } else {
+      } else if (!cached) {
         setRepoContributorsList([]);
       }
 
+      let invitesData: InvitationResponse[] = [];
       if (invitesRes.ok) {
-        const invitesData: InvitationResponse[] = await invitesRes.json();
+        invitesData = await invitesRes.json();
         setExistingInvitations(invitesData);
-      } else {
+      } else if (!cached) {
         setExistingInvitations([]);
       }
+
+      // Update in-memory fast cache
+      repoContributorsCacheRef.current[repo.repositoryId] = {
+        contributors: contribsData,
+        invitations: invitesData,
+        timestamp: Date.now(),
+      };
     } catch (err) {
       console.error("Failed to load contributors or invitations:", err);
     } finally {
@@ -1597,7 +1679,7 @@ export default function UserDashboard() {
       setInviteSuccess(`Successfully sent ${created.length} invitation${created.length > 1 ? "s" : ""}! Invitation email(s) dispatched.`);
       setSelectedContributorsForInvite({});
 
-      // Refresh invitations list
+      // Refresh invitations list & update cache
       const invitesRes = await fetch(
         `${API_BASE_URL}/invitations/repository/${selectedRepoForInvite.repositoryId}`,
         { headers }
@@ -1605,6 +1687,12 @@ export default function UserDashboard() {
       if (invitesRes.ok) {
         const invitesData: InvitationResponse[] = await invitesRes.json();
         setExistingInvitations(invitesData);
+        const currentCached = repoContributorsCacheRef.current[selectedRepoForInvite.repositoryId];
+        repoContributorsCacheRef.current[selectedRepoForInvite.repositoryId] = {
+          contributors: currentCached ? currentCached.contributors : repoContributorsList,
+          invitations: invitesData,
+          timestamp: Date.now(),
+        };
       }
     } catch (err: any) {
       setInviteError(err.message || "Failed to send invitations");
