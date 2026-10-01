@@ -1,5 +1,12 @@
 # React + TypeScript + Vite
 
+## Environment
+
+Set `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`, and
+`VITE_API_BASE_URL` before building. Use `/api` when the frontend is served by
+the included Nginx configuration; `.env.example` provides a template. Every deployed origin must also be listed in
+Auth0's Allowed Callback URLs and Allowed Logout URLs.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -146,6 +146,67 @@
   font-size: 10px;
 }
 
+.logout-button {
+  margin-left: auto;
+  border: 0;
+  color: #a7a8b9;
+  background: transparent;
+  cursor: pointer;
+  padding: 7px;
+  border-radius: 7px;
+}
+.logout-button:hover, .logout-button:focus-visible { color: white; background: #292a35; }
+.user-avatar { object-fit: cover; color: white; }
+.nav-item { text-decoration: none; }
+.global-search { position: relative; }
+.search-results {
+  position: absolute; z-index: 20; top: 44px; right: 0; width: 340px; max-height: 360px;
+  overflow: auto; background: white; border: 1px solid #e0e1e7; border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(20, 23, 34, .16); padding: 6px;
+}
+.search-results button { width: 100%; border: 0; background: white; padding: 10px; border-radius: 7px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
+.search-results button:hover, .search-results button:focus-visible { background: #f2f3f8; }
+.search-results span, .search-result-muted { color: #6f7181; font-size: 11px; }
+.search-result-muted { padding: 12px; }
+.admin-filter-bar { display: flex; align-items: center; gap: 10px; background: white; border: 1px solid #e4e5ea; border-radius: 10px; padding: 12px; margin-bottom: 18px; }
+.admin-filter-bar input { flex: 1; min-width: 180px; border: 0; outline: 0; font: inherit; }
+.admin-filter-bar select, .admin-filter-bar button, .admin-pagination button { border: 1px solid #dfe1e8; background: white; border-radius: 7px; padding: 8px 11px; cursor: pointer; }
+.admin-filter-bar button[type="submit"] { background: #5b5ce2; border-color: #5b5ce2; color: white; }
+.admin-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 18px; font-size: 13px; }
+.admin-pagination button:disabled { cursor: not-allowed; opacity: .45; }
+.admin-inline-error { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; margin-bottom: 16px; color: #991b1b; background: #fee2e2; border-radius: 8px; }
+.admin-inline-error button { border: 0; background: transparent; color: inherit; font-weight: 700; cursor: pointer; }
+.admin-empty { padding: 28px; color: #77798e; text-align: center; }
+.job-summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 24px; }
+.job-summary span { background: white; border: 1px solid #e4e5ea; border-radius: 999px; padding: 7px 12px; font-size: 12px; }
+.activity-link { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.activity-link:hover { background: #f7f7fb; }
+.health-name small { display: block; margin-top: 3px; color: #77798e; }
+.heading-actions, .details-header-nav, .github-org-link, .back-button, .view-button { display: flex; align-items: center; gap: 7px; }
+.last-updated { color: #77798e; font-size: 12px; }
+.affiliation-list { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.company-metadata { margin-top: 20px; padding: 22px; }
+.status-timeline { list-style: none; margin: 0; padding: 8px 24px 24px; }
+.status-timeline li { display: flex; gap: 14px; border-left: 2px solid #e4e5ea; padding: 0 0 24px 20px; position: relative; }
+.status-timeline li > .health-dot { position: absolute; left: -7px; top: 3px; }
+.status-timeline p { margin: 5px 0; color: #55586a; }
+.status-timeline small { color: #85879b; }
+.report-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 18px; }
+.stat-value-text { font-size: 18px; overflow-wrap: anywhere; }
+
+@media (max-width: 800px) {
+  .admin-layout { display: block; }
+  .admin-sidebar { width: 100%; min-height: auto; }
+  .sidebar-nav { flex-direction: row; overflow-x: auto; }
+  .sidebar-user { margin-top: 16px; }
+  .admin-header { padding: 10px 16px; height: auto; }
+  .header-title { display: none; }
+  .header-actions, .global-search, .search-box { width: 100%; }
+  .search-results { left: 0; right: auto; width: 100%; }
+  .dashboard-content { padding: 20px 14px; }
+  .admin-filter-bar { align-items: stretch; flex-direction: column; }
+}
+
 
 /* ================= MAIN ================= */
 
@@ -322,15 +383,6 @@
   align-items: center;
   justify-content: center;
   font-size: 18px;
-}
-
-.stat-growth {
-  padding: 5px 8px;
-  border-radius: 5px;
-  background: #edf8f2;
-  color: #55a476;
-  font-size: 10px;
-  font-weight: 600;
 }
 
 .stat-value {
