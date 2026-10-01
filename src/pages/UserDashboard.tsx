@@ -269,6 +269,8 @@ export default function UserDashboard() {
   const [analysisStatusMap, setAnalysisStatusMap] = useState<Record<number, {
     analysisId?: number;
     status?: string;
+    stage?: string;
+    message?: string;
     totalClasses?: number;
     completedAt?: string;
     startedAt?: string;
@@ -695,7 +697,7 @@ export default function UserDashboard() {
             const data = JSON.parse(event.data);
             if (!data || !data.jobId) return;
 
-            const { jobId, repositoryId, repositoryName, branch, status, totalClasses, message } = data;
+            const { jobId, repositoryId, repositoryName, branch, status, stage, totalClasses, message } = data;
 
             // 1. Update analysis status map
             if (repositoryId) {
@@ -704,6 +706,8 @@ export default function UserDashboard() {
                 [repositoryId]: {
                   analysisId: jobId,
                   status: status,
+                  stage: stage || (status === "RUNNING" ? "ML_PREDICTION" : status === "QUEUED" ? "CLONING_REPO" : status),
+                  message: message,
                   totalClasses: totalClasses,
                   completedAt: status === "COMPLETED" || status === "FAILED" ? new Date().toISOString() : prev[repositoryId]?.completedAt,
                   startedAt: prev[repositoryId]?.startedAt || new Date().toISOString(),
@@ -1711,13 +1715,33 @@ export default function UserDashboard() {
 
                             {/* Dynamic State Info Area */}
                             {isQueuedOrRunning ? (
-                              <div className="my-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 text-xs space-y-2 animate-pulse">
-                                <div className="flex items-center gap-2 font-semibold">
-                                  <Loader2 size={14} className="animate-spin text-indigo-400" />
-                                  <span>Analysis Pipeline in Progress...</span>
+                              <div className="my-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-200 text-xs space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 font-bold text-white">
+                                    <Loader2 size={15} className="animate-spin text-indigo-400 shrink-0" />
+                                    <span>
+                                      {currentStatus?.stage === "ML_PREDICTION"
+                                        ? "Stage 2/2: Machine Learning Models Active"
+                                        : "Stage 1/2: Git Clone & Static AST Analysis"}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                    {currentStatus?.stage === "ML_PREDICTION" ? "ML Processing" : "AST Parser"}
+                                  </span>
                                 </div>
-                                <p className="text-[11px] text-indigo-300">
-                                  Running JGit clone, JavaParser AST metric calculations, SATD comment classifiers, and Random Forest bug prediction models.
+
+                                {/* Step Progress Track */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className={`h-1.5 rounded-full transition-all ${currentStatus?.stage === "ML_PREDICTION" ? "bg-indigo-400" : "bg-indigo-400 animate-pulse"}`} />
+                                  <div className={`h-1.5 rounded-full transition-all ${currentStatus?.stage === "ML_PREDICTION" ? "bg-indigo-400 animate-pulse" : "bg-slate-700/60"}`} />
+                                </div>
+
+                                <p className="text-[11px] text-indigo-300/90 leading-relaxed">
+                                  {currentStatus?.message
+                                    ? currentStatus.message
+                                    : currentStatus?.stage === "ML_PREDICTION"
+                                      ? `Static metrics computed for ${currentStatus?.totalClasses ?? "all"} classes. Running SATD classifiers & Random Forest bug models.`
+                                      : "Cloning repository from GitHub, scanning Java classes, and calculating CK complexity metrics."}
                                 </p>
                               </div>
                             ) : isCompleted ? (
@@ -1727,7 +1751,7 @@ export default function UserDashboard() {
                                   <div>
                                     <p className="font-semibold text-white">Analysis Succeeded</p>
                                     <p className="text-[11px] text-emerald-300">
-                                      {currentStatus?.totalClasses ?? 0} classes analyzed successfully.
+                                      {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking.
                                     </p>
                                   </div>
                                 </div>
@@ -1735,7 +1759,7 @@ export default function UserDashboard() {
                             ) : isFailed ? (
                               <div className="my-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center gap-2">
                                 <AlertCircle size={15} className="shrink-0" />
-                                <span>Analysis failed to complete. You can retry starting the job.</span>
+                                <span>{currentStatus?.message || "Analysis failed to complete. You can retry starting the job."}</span>
                               </div>
                             ) : (
                               <div className="my-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
