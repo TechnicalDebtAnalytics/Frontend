@@ -1,50 +1,210 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Building2, Search } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { queryString, useAdminApi } from '../config/adminApi'
-import type { PagedResponse } from '../config/adminApi'
-import type { AdminCompany } from './adminTypes'
-import { formatDate } from './adminTypes'
+import {
+  queryString,
+  useAdminApi,
+  type PagedResponse,
+} from '../services/adminApi'
+import {
+  formatDate,
+  type AdminCompany,
+} from '../types/adminTypes'
+import './SystemAdminCompanies.css'
 
-export type { AdminCompany } from './adminTypes'
+export type { AdminCompany }
 
 export default function SystemAdminCompanies() {
-  const api = useAdminApi(); const navigate = useNavigate(); const [params, setParams] = useSearchParams()
-  const [data, setData] = useState<PagedResponse<AdminCompany> | null>(null)
-  const [input, setInput] = useState(params.get('q') || '')
-  const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null)
-  const page = Math.max(0, Number(params.get('page') || 0)); const q = params.get('q') || ''
+  const api = useAdminApi()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const load = useCallback(async () => {
-    setLoading(true); setError(null)
-    try { setData(await api<PagedResponse<AdminCompany>>(`/admin/companies?${queryString({ q, page, size: 20, sort: 'createdAt,desc' })}`)) }
-    catch (err) { setError(err instanceof Error ? err.message : 'Failed to load companies') }
-    finally { setLoading(false) }
+  const q = searchParams.get('q') ?? ''
+  const page = Math.max(0, Number(searchParams.get('page') ?? '0'))
+
+  const [input, setInput] = useState(q)
+  const [companies, setCompanies] =
+    useState<PagedResponse<AdminCompany> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadCompanies = useCallback(async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await api.get<PagedResponse<AdminCompany>>(
+        `/admin/companies${queryString({
+          q: q || undefined,
+          page,
+          size: 20,
+          sort: 'createdAt,desc',
+        })}`,
+      )
+
+      setCompanies(response)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to load companies.',
+      )
+    } finally {
+      setLoading(false)
+    }
   }, [api, page, q])
+
   useEffect(() => {
-    // Loading is intentionally triggered when the URL-backed query changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load()
-  }, [load])
+    void loadCompanies()
+  }, [loadCompanies])
 
-  const submit = (event: FormEvent) => { event.preventDefault(); setParams(input.trim() ? { q: input.trim(), page: '0' } : {}) }
-  const setPage = (next: number) => { const copy = new URLSearchParams(params); copy.set('page', String(next)); setParams(copy) }
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault()
 
-  return <section className="dashboard-content companies-content">
-    <div className="page-heading"><div><h1>Companies</h1><p>Inspect registered organizations and their platform usage.</p></div>
-      <div className="companies-count"><span className="count-badge">{data?.totalElements ?? 0}</span>Total Companies</div></div>
-    <form className="admin-filter-bar" onSubmit={submit}><Search size={16} /><input aria-label="Search companies" value={input} onChange={e => setInput(e.target.value)} placeholder="Search company or GitHub organization" /><button type="submit">Search</button>{q && <button type="button" onClick={() => { setInput(''); setParams({}) }}>Clear</button>}</form>
-    {loading ? <div className="companies-loading" role="status"><div className="loading-spinner" /><p>Loading companies…</p></div>
-      : error ? <div className="companies-error" role="alert"><h3>Failed to Load Companies</h3><p>{error}</p><button className="retry-button" onClick={() => void load()}>Retry</button></div>
-      : !data?.content.length ? <div className="companies-empty"><Building2 size={32} /><h3>No Companies Found</h3><p>Try a different search.</p></div>
-      : <div className="dashboard-card"><div className="companies-table-wrapper" tabIndex={0} role="region" aria-label="Companies table"><table className="companies-table"><thead><tr><th>Company</th><th>GitHub Organization</th><th>Owner</th><th>Repositories</th><th>Users</th><th>Created</th></tr></thead><tbody>
-        {data.content.map(company => <tr key={company.companyId} className="clickable-row" tabIndex={0} onClick={() => navigate(`/admin/companies/${company.companyId}`)} onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/companies/${company.companyId}`) }}>
-          <td><div className="company-name-cell"><div className="company-avatar">{company.companyName?.[0]?.toUpperCase() || 'C'}</div><strong>{company.companyName}</strong></div></td>
-          <td><span className="org-badge">{company.githubOrganizationUrl?.split('/').filter(Boolean).pop() || '—'}</span></td>
-          <td><div className="owner-cell"><strong>{company.superAdminName || '—'}</strong><small>{company.superAdminEmail || '—'}</small></div></td>
-          <td><span className="count-pill">{company.totalRepositories}</span></td><td><span className="count-pill">{company.totalUsers}</span></td><td>{formatDate(company.createdAt)}</td>
-        </tr>)}</tbody></table></div></div>}
-    {data && data.totalPages > 1 && <div className="admin-pagination"><button disabled={data.page === 0} onClick={() => setPage(data.page - 1)}>Previous</button><span>Page {data.page + 1} of {data.totalPages}</span><button disabled={data.page + 1 >= data.totalPages} onClick={() => setPage(data.page + 1)}>Next</button></div>}
-  </section>
+    const next = new URLSearchParams(searchParams)
+    const trimmed = input.trim()
+
+    if (trimmed) {
+      next.set('q', trimmed)
+    } else {
+      next.delete('q')
+    }
+
+    next.set('page', '0')
+    setSearchParams(next)
+  }
+
+  const changePage = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('page', String(nextPage))
+    setSearchParams(next)
+  }
+
+  return (
+    <section className="companies-page">
+      <div className="companies-summary">
+        <div>
+          <p className="companies-summary-label">Companies</p>
+          <strong>{companies?.totalElements ?? 0}</strong>
+        </div>
+
+        <form
+          className="companies-search"
+          onSubmit={submitSearch}
+          role="search"
+        >
+          <Search size={18} aria-hidden="true" />
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Search companies"
+            aria-label="Search companies"
+          />
+        </form>
+      </div>
+
+      <div className="companies-table-card">
+        {loading ? (
+          <div className="admin-page-state">Loading companies…</div>
+        ) : error ? (
+          <div className="admin-page-state admin-page-state-error">
+            <p>{error}</p>
+            <button type="button" onClick={() => void loadCompanies()}>
+              Retry
+            </button>
+          </div>
+        ) : !companies || companies.content.length === 0 ? (
+          <div className="admin-page-state">
+            <Building2 size={28} aria-hidden="true" />
+            <p>No companies match the current filters.</p>
+          </div>
+        ) : (
+          <>
+            <div className="companies-table-wrapper">
+              <table className="companies-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Super admin</th>
+                    <th>Repositories</th>
+                    <th>Users</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {companies.content.map((company) => (
+                    <tr
+                      key={company.companyId}
+                      tabIndex={0}
+                      onClick={() =>
+                        navigate(`/admin/companies/${company.companyId}`)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          navigate(
+                            `/admin/companies/${company.companyId}`,
+                          )
+                        }
+                      }}
+                    >
+                      <td>
+                        <div className="company-name-cell">
+                          <span className="company-icon">
+                            <Building2 size={18} aria-hidden="true" />
+                          </span>
+
+                          <div>
+                            <strong>{company.companyName}</strong>
+                            <span>
+                              {company.githubOrganizationUrl || '—'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td>
+                        <strong>{company.superAdminName || '—'}</strong>
+                        <span>{company.superAdminEmail || '—'}</span>
+                      </td>
+
+                      <td>{company.totalRepositories}</td>
+                      <td>{company.totalUsers}</td>
+                      <td>{formatDate(company.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              className="admin-pagination"
+              aria-label="Company pagination"
+            >
+              <button
+                type="button"
+                disabled={companies.page <= 0}
+                onClick={() => changePage(companies.page - 1)}
+              >
+                Previous
+              </button>
+
+              <span>
+                Page {companies.page + 1} of{' '}
+                {Math.max(companies.totalPages, 1)}
+              </span>
+
+              <button
+                type="button"
+                disabled={companies.page + 1 >= companies.totalPages}
+                onClick={() => changePage(companies.page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  )
 }

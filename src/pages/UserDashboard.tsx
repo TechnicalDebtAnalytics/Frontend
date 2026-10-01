@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   Building2,
@@ -39,6 +39,7 @@ import {
   Maximize2,
   Minimize2,
   Radio,
+  StopCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 
@@ -121,6 +122,7 @@ interface CompanyAdminItem {
   companyName: string;
   githubOrganizationName: string;
   githubOrganizationUrl: string;
+  githubInstallationId?: number | null;
   totalRepositories: number;
   repositories?: {
     repositoryId: number;
@@ -178,9 +180,21 @@ export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState<"all" | "admin" | "member">("all");
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
 
-  // Live admin companies from backend
-  const [adminCompaniesList, setAdminCompaniesList] = useState<CompanyAdminItem[]>([]);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  // Live admin companies from backend (with Fast Session Cache for 0ms initial load)
+  const [adminCompaniesList, setAdminCompaniesList] = useState<CompanyAdminItem[]>(() => {
+    try {
+      const saved = sessionStorage.getItem("debtlens_cached_admin_companies");
+      if (saved) return JSON.parse(saved);
+    } catch { }
+    return [];
+  });
+  const [loadingCompanies, setLoadingCompanies] = useState(() => {
+    try {
+      return !sessionStorage.getItem("debtlens_cached_admin_companies");
+    } catch {
+      return true;
+    }
+  });
 
   // ── Create Company Modal State ──
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -215,6 +229,11 @@ export default function UserDashboard() {
   const [creationError, setCreationError] = useState("");
   const [creationSuccess, setCreationSuccess] = useState(false);
 
+  // ── GitHub App Integration State ──
+  const [appInfo, setAppInfo] = useState<{ configured: boolean; appSlug: string; installUrl: string } | null>(null);
+  const [installationIdFromUrl, setInstallationIdFromUrl] = useState<number | null>(null);
+  const [linkingInstallation, setLinkingInstallation] = useState(false);
+
   // ── Manage Company Repositories Modal State ──
   const [manageCompany, setManageCompany] = useState<CompanyAdminItem | null>(null);
   const [availableForCompany, setAvailableForCompany] = useState<CompanyAvailableRepo[]>([]);
@@ -241,7 +260,13 @@ export default function UserDashboard() {
   // ── My Pending Invitations & Member Companies State ──
   const [myPendingInvitations, setMyPendingInvitations] = useState<InvitationResponse[]>([]);
   const [processingInvitationId, setProcessingInvitationId] = useState<number | null>(null);
-  const [memberCompaniesList, setMemberCompaniesList] = useState<CompanyAdminItem[]>([]);
+  const [memberCompaniesList, setMemberCompaniesList] = useState<CompanyAdminItem[]>(() => {
+    try {
+      const saved = sessionStorage.getItem("debtlens_cached_member_companies");
+      if (saved) return JSON.parse(saved);
+    } catch { }
+    return [];
+  });
   const [loadingMemberCompanies, setLoadingMemberCompanies] = useState(false);
   const [invitationActionMsg, setInvitationActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -266,6 +291,7 @@ export default function UserDashboard() {
 
   // ── Analysis Execution State ──
   const [analyzingRepoIds, setAnalyzingRepoIds] = useState<Record<number, boolean>>({});
+  const [cancellingRepoIds, setCancellingRepoIds] = useState<Record<number, boolean>>({});
   const [analysisStatusMap, setAnalysisStatusMap] = useState<Record<number, {
     analysisId?: number;
     status?: string;
@@ -273,8 +299,93 @@ export default function UserDashboard() {
     message?: string;
     totalClasses?: number;
     completedAt?: string;
+    completedTimestamp?: number;
     startedAt?: string;
   }>>({});
+
+  // ── In-Memory Fast Caches for Instant 0ms Navigation / Repo Switching ──
+  const repoContributorsCacheRef = useRef<Record<number, { contributors: RepoContributor[]; invitations: InvitationResponse[]; timestamp: number }>>({});
+  const companyReposCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; timestamp: number }>>({});
+  const companyPastAnalysesCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; analysisList: PastAnalysisJob[]; timestamp: number }>>({});
+  const companyAnalysisWorkspaceCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; statusMap: Record<number, any>; timestamp: number }>>({});
+  const reportsCacheRef = useRef<Record<number, TechnicalDebtReport>>({});
+
+  // 10-Minute Results Retention Window for Completed Analyses
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+
+  // Helper to accurately parse timestamps across server/client timezones
+  const parseServerDate = (dateStr?: string | number | null): number => {
+    if (!dateStr) return 0;
+    if (typeof dateStr === "number") return dateStr;
+    const str = String(dateStr).trim();
+    if (!str) return 0;
+    if (str.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(str)) {
+      return new Date(str).getTime();
+    }
+    const now = Date.now();
+    const asUtc = new Date(str + "Z").getTime();
+    const asLocal = new Date(str).getTime();
+    const diffUtc = Math.abs(now - asUtc);
+    const diffLocal = Math.abs(now - asLocal);
+    return diffUtc <= diffLocal ? asUtc : asLocal;
+  };
+
+  const saveRecentAnalysisToStorage = (repoId: number, data: any) => {
+    try {
+      localStorage.setItem(`debtlens_analysis_recent_${repoId}`, JSON.stringify({
+        ...data,
+        completedTimestamp: data.completedTimestamp || Date.now(),
+      }));
+    } catch { }
+  };
+
+  const getRecentAnalysisFromStorage = (repoId: number): any | null => {
+    try {
+      const item = localStorage.getItem(`debtlens_analysis_recent_${repoId}`);
+      if (!item) return null;
+      const parsed = JSON.parse(item);
+      const timestamp = parsed.completedTimestamp || parseServerDate(parsed.completedAt);
+      if (Date.now() - timestamp < TEN_MINUTES_MS) {
+        return parsed;
+      }
+      localStorage.removeItem(`debtlens_analysis_recent_${repoId}`);
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const instIdStr = params.get("installation_id");
+      if (instIdStr && !isNaN(Number(instIdStr))) {
+        const id = Number(instIdStr);
+        setInstallationIdFromUrl(id);
+      }
+    } catch { }
+
+    const checkAppInfo = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/github/app/info`);
+        if (res.ok) {
+          const data = await res.json();
+          setAppInfo(data);
+        }
+      } catch (err) {
+        console.debug("Could not fetch github app info", err);
+      }
+    };
+    checkAppInfo();
+  }, []);
 
   // ── Technical Debt Report & Recommendations Modal State ──
   const [selectedReportAnalysisId, setSelectedReportAnalysisId] = useState<number | null>(null);
@@ -320,7 +431,11 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/my-admin`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setAdminCompaniesList(Array.isArray(data) ? data.filter(Boolean) : []);
+        const valid = Array.isArray(data) ? data.filter(Boolean) : [];
+        setAdminCompaniesList(valid);
+        try {
+          sessionStorage.setItem("debtlens_cached_admin_companies", JSON.stringify(valid));
+        } catch { }
       }
     } catch (err) {
       console.warn("Could not fetch admin companies:", err);
@@ -365,7 +480,11 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/my-member`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setMemberCompaniesList(Array.isArray(data) ? data.filter(Boolean) : []);
+        const valid = Array.isArray(data) ? data.filter(Boolean) : [];
+        setMemberCompaniesList(valid);
+        try {
+          sessionStorage.setItem("debtlens_cached_member_companies", JSON.stringify(valid));
+        } catch { }
       }
     } catch (err) {
       console.warn("Could not fetch member companies:", err);
@@ -452,52 +571,26 @@ export default function UserDashboard() {
     }
   };
 
-  // Open Full Page Analysis Workspace (do NOT preload previous old jobs results)
+  // Open Full Page Analysis Workspace (loads recent analyses completed within 10 minutes or currently running)
   const openAnalysisPage = async (company: CompanyAdminItem, role: "admin" | "member") => {
     setAnalysisPageCompany(company);
     setAnalysisPageRole(role);
     setAnalysisRepoSearch("");
-    // Clear analysis status map so previous historical results are not shown
-    setAnalysisStatusMap({});
-    setLoadingActiveCompanyRepos(true);
+
     try {
-      let token = "";
-      try {
-        token = await getAccessTokenSilently();
-      } catch { }
+      sessionStorage.setItem("debtlens_active_analysis_company", JSON.stringify({ company, role }));
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "analysis", company, role }));
+    } catch { }
 
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
-      if (res.ok) {
-        const data: CompanyRepoItem[] = await res.json();
-        setActiveCompanyRepos(data);
-      } else {
-        setActiveCompanyRepos([]);
-      }
-    } catch (err) {
-      console.warn("Could not fetch company repositories for analysis workspace:", err);
-      setActiveCompanyRepos([]);
-    } finally {
+    // 0ms Instant Loading from Fast In-Memory Cache if available
+    const cachedWorkspace = companyAnalysisWorkspaceCacheRef.current[company.companyId];
+    if (cachedWorkspace && cachedWorkspace.repos.length > 0) {
+      setActiveCompanyRepos(cachedWorkspace.repos);
+      setAnalysisStatusMap(cachedWorkspace.statusMap);
       setLoadingActiveCompanyRepos(false);
+    } else {
+      setLoadingActiveCompanyRepos(true);
     }
-  };
-
-  const closeAnalysisPage = () => {
-    setAnalysisPageCompany(null);
-    setAnalysisRepoSearch("");
-  };
-
-  // Open Full Page Past Analyses Workspace
-  const openPastAnalysesPage = async (company: CompanyAdminItem, role: "admin" | "member" = "admin", initialRepoId?: number) => {
-    setPastAnalysesCompany(company);
-    setPastAnalysesRole(role);
-    setLoadingPastAnalyses(true);
-    setPastAnalysesError("");
-    setPastAnalysesSearch("");
-    setSelectedPastRepoId(initialRepoId ?? "ALL");
-    setPastAnalysesStatusFilter("ALL");
 
     try {
       let token = "";
@@ -513,24 +606,175 @@ export default function UserDashboard() {
         fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
       ]);
 
+      let reposList: CompanyRepoItem[] = [];
       if (reposRes.ok) {
-        const reposData = await reposRes.json();
-        setPastAnalysesRepos(Array.isArray(reposData) ? reposData.filter(Boolean) : []);
-      } else {
+        const data: CompanyRepoItem[] = await reposRes.json();
+        reposList = Array.isArray(data) ? data.filter(Boolean) : [];
+        setActiveCompanyRepos(reposList);
+      } else if (!cachedWorkspace) {
+        setActiveCompanyRepos([]);
+      }
+
+      const initialStatusMap: Record<number, {
+        analysisId?: number;
+        status?: string;
+        stage?: string;
+        message?: string;
+        totalClasses?: number;
+        completedAt?: string;
+        completedTimestamp?: number;
+        startedAt?: string;
+      }> = { ...(cachedWorkspace ? cachedWorkspace.statusMap : {}) };
+
+      // 1. First populate from localStorage cache (if within 10 minutes)
+      for (const repo of reposList) {
+        const saved = getRecentAnalysisFromStorage(repo.repositoryId);
+        if (saved) {
+          initialStatusMap[repo.repositoryId] = saved;
+        }
+      }
+
+      // 2. Cross-reference with API analysis history
+      if (analysisRes.ok) {
+        const analysisData: PastAnalysisJob[] = await analysisRes.json();
+        if (Array.isArray(analysisData)) {
+          // Sort descending by analysisId to get most recent first
+          const sortedJobs = [...analysisData].sort((a, b) => b.analysisId - a.analysisId);
+          for (const job of sortedJobs) {
+            if (job.repositoryId && !initialStatusMap[job.repositoryId]) {
+              const isRunningOrQueued = job.status === "QUEUED" || job.status === "RUNNING" || job.status === "PROCESSING";
+              const isComp = job.status === "COMPLETED";
+              const isFail = job.status === "FAILED";
+              const isCanc = job.status === "CANCELLED";
+
+              if (isRunningOrQueued) {
+                initialStatusMap[job.repositoryId] = {
+                  analysisId: job.analysisId,
+                  status: job.status,
+                  stage: job.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO",
+                  totalClasses: job.totalClassesAnalyzed || job.totalClasses,
+                  startedAt: job.startedAt,
+                  completedAt: job.completedAt || undefined,
+                };
+              } else if ((isComp || isFail || isCanc) && job.completedAt) {
+                const jobTimeMs = parseServerDate(job.completedAt);
+                const elapsed = Date.now() - jobTimeMs;
+                if (elapsed >= 0 && elapsed < TEN_MINUTES_MS) {
+                  const jobData = {
+                    analysisId: job.analysisId,
+                    status: job.status,
+                    stage: job.status,
+                    totalClasses: job.totalClassesAnalyzed || job.totalClasses,
+                    startedAt: job.startedAt,
+                    completedAt: job.completedAt,
+                    completedTimestamp: jobTimeMs,
+                    message: isComp ? "Analysis completed successfully" : (isCanc ? "Analysis was cancelled by user." : "Analysis failed"),
+                  };
+                  initialStatusMap[job.repositoryId] = jobData;
+                  saveRecentAnalysisToStorage(job.repositoryId, jobData);
+                }
+              }
+            }
+          }
+        }
+      }
+      setAnalysisStatusMap(initialStatusMap);
+
+      // Save to fast in-memory cache
+      companyAnalysisWorkspaceCacheRef.current[company.companyId] = {
+        repos: reposList,
+        statusMap: initialStatusMap,
+        timestamp: Date.now(),
+      };
+    } catch (err) {
+      console.warn("Could not fetch company repositories or analysis for workspace:", err);
+      if (!cachedWorkspace) {
+        setActiveCompanyRepos([]);
+      }
+    } finally {
+      setLoadingActiveCompanyRepos(false);
+    }
+  };
+
+  const closeAnalysisPage = () => {
+    setAnalysisPageCompany(null);
+    setAnalysisRepoSearch("");
+    try {
+      sessionStorage.removeItem("debtlens_active_analysis_company");
+      sessionStorage.removeItem("debtlens_active_user_view");
+    } catch { }
+  };
+
+  // Open Full Page Past Analyses Workspace (with 0ms In-Memory SWR Caching)
+  const openPastAnalysesPage = async (company: CompanyAdminItem, role: "admin" | "member" = "admin", initialRepoId?: number) => {
+    setPastAnalysesCompany(company);
+    setPastAnalysesRole(role);
+    setPastAnalysesError("");
+    setPastAnalysesSearch("");
+    setSelectedPastRepoId(initialRepoId ?? "ALL");
+    setPastAnalysesStatusFilter("ALL");
+
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "pastAnalyses", company, role, initialRepoId }));
+    } catch { }
+
+    // 0ms Instant Loading from Fast In-Memory Cache if available
+    const cached = companyPastAnalysesCacheRef.current[company.companyId];
+    if (cached) {
+      setPastAnalysesRepos(cached.repos);
+      setPastAnalysesList(cached.analysisList);
+      setLoadingPastAnalyses(false);
+    } else {
+      setLoadingPastAnalyses(true);
+      setPastAnalysesRepos([]);
+      setPastAnalysesList([]);
+    }
+
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const [reposRes, analysisRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
+        fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
+      ]);
+
+      let reposData: CompanyRepoItem[] = [];
+      if (reposRes.ok) {
+        const data = await reposRes.json();
+        reposData = Array.isArray(data) ? data.filter(Boolean) : [];
+        setPastAnalysesRepos(reposData);
+      } else if (!cached) {
         setPastAnalysesRepos([]);
       }
 
+      let analysisData: PastAnalysisJob[] = [];
       if (analysisRes.ok) {
-        const analysisData = await analysisRes.json();
-        setPastAnalysesList(Array.isArray(analysisData) ? analysisData.filter(Boolean) : []);
-      } else {
+        const data = await analysisRes.json();
+        analysisData = Array.isArray(data) ? data.filter(Boolean) : [];
+        setPastAnalysesList(analysisData);
+      } else if (!cached) {
         setPastAnalysesList([]);
       }
+
+      // Update in-memory cache
+      companyPastAnalysesCacheRef.current[company.companyId] = {
+        repos: reposData,
+        analysisList: analysisData,
+        timestamp: Date.now(),
+      };
     } catch (err: any) {
       console.error("Failed to load past analyses:", err);
-      setPastAnalysesError(err.message || "Could not fetch past analyses.");
-      setPastAnalysesRepos([]);
-      setPastAnalysesList([]);
+      if (!cached) {
+        setPastAnalysesError(err.message || "Could not fetch past analyses.");
+        setPastAnalysesRepos([]);
+        setPastAnalysesList([]);
+      }
     } finally {
       setLoadingPastAnalyses(false);
     }
@@ -542,6 +786,9 @@ export default function UserDashboard() {
     setPastAnalysesRepos([]);
     setSelectedPastRepoId("ALL");
     setPastAnalysesError("");
+    try {
+      sessionStorage.removeItem("debtlens_active_user_view");
+    } catch { }
   };
 
   // Trigger analysis for a repository via RabbitMQ
@@ -556,9 +803,8 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const targetBranch = repo.defaultBranch || "main";
       const res = await fetch(
-        `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis?branch=${encodeURIComponent(targetBranch)}`,
+        `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`,
         {
           method: "POST",
           headers,
@@ -583,7 +829,7 @@ export default function UserDashboard() {
 
       setInvitationActionMsg({
         type: "success",
-        text: `Analysis job #${data.analysisId} started for '${repo.repositoryName}' (${targetBranch})! Running metrics extraction and ML models...`,
+        text: `Analysis job #${data.analysisId} started for '${repo.repositoryName}'! Running metrics extraction and ML models...`,
       });
 
       // Active polling every 2.5 seconds until entire ML pipeline is COMPLETED
@@ -596,17 +842,28 @@ export default function UserDashboard() {
             const jobs = await pollRes.json();
             if (Array.isArray(jobs) && jobs.length > 0) {
               const latest = jobs[0];
+              const isDone = latest.status === "COMPLETED" || latest.status === "FAILED" || latest.status === "CANCELLED";
+              const completedTime = latest.completedAt || new Date().toISOString();
+              const completedTimestamp = parseServerDate(completedTime);
+
+              const statusData = {
+                analysisId: latest.analysisId,
+                status: latest.status,
+                stage: latest.status === "COMPLETED" ? "COMPLETED" : (latest.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO"),
+                totalClasses: latest.totalClassesAnalyzed,
+                startedAt: latest.startedAt,
+                completedAt: completedTime,
+                completedTimestamp: completedTimestamp,
+                message: latest.status === "COMPLETED" ? "Analysis completed successfully" : (latest.status === "CANCELLED" ? "Analysis was cancelled by user." : "Analysis failed"),
+              };
+
               setAnalysisStatusMap((prev) => ({
                 ...prev,
-                [repo.repositoryId]: {
-                  analysisId: latest.analysisId,
-                  status: latest.status,
-                  totalClasses: latest.totalClassesAnalyzed,
-                  startedAt: latest.startedAt,
-                  completedAt: latest.completedAt,
-                },
+                [repo.repositoryId]: statusData,
               }));
-              if (latest.status === "COMPLETED" || latest.status === "FAILED" || attempts >= 40) {
+
+              if (isDone) {
+                saveRecentAnalysisToStorage(repo.repositoryId, statusData);
                 clearInterval(pollInterval);
               }
             }
@@ -625,11 +882,76 @@ export default function UserDashboard() {
     }
   };
 
+  // Cancel ongoing analysis for a repository
+  const handleCancelAnalysis = async (repo: CompanyRepoItem) => {
+    setCancellingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: true }));
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const currentAnalysisId = analysisStatusMap[repo.repositoryId]?.analysisId;
+      const url = currentAnalysisId
+        ? `${API_BASE_URL}/analysis/${currentAnalysisId}/cancel`
+        : `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis/cancel`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to cancel analysis job");
+      }
+
+      setAnalyzingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
+      setAnalysisStatusMap((prev) => ({
+        ...prev,
+        [repo.repositoryId]: {
+          analysisId: currentAnalysisId,
+          status: "CANCELLED",
+          stage: "CANCELLED",
+          message: "Analysis was cancelled by user.",
+          completedAt: new Date().toISOString(),
+        },
+      }));
+
+      setInvitationActionMsg({
+        type: "success",
+        text: `Analysis for '${repo.repositoryName}' has been cancelled.`,
+      });
+    } catch (err: any) {
+      setInvitationActionMsg({
+        type: "error",
+        text: err.message || `Failed to cancel analysis for ${repo.repositoryName}`,
+      });
+    } finally {
+      setCancellingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
+    }
+  };
+
   const handleOpenReport = async (analysisId: number) => {
     setSelectedReportAnalysisId(analysisId);
-    setLoadingReport(true);
     setReportError("");
-    setActiveReport(null);
+
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "report", analysisId }));
+    } catch { }
+
+    // 0ms Instant Loading from Fast Reports Cache if available
+    const cachedReport = reportsCacheRef.current[analysisId];
+    if (cachedReport) {
+      setActiveReport(cachedReport);
+      setLoadingReport(false);
+    } else {
+      setActiveReport(null);
+      setLoadingReport(true);
+    }
 
     try {
       let token = "";
@@ -647,12 +969,29 @@ export default function UserDashboard() {
       }
 
       const data: TechnicalDebtReport = await res.json();
+      reportsCacheRef.current[analysisId] = data;
       setActiveReport(data);
     } catch (err: any) {
-      setReportError(err.message || "Failed to load report");
+      if (!cachedReport) {
+        setReportError(err.message || "Failed to load report");
+      }
     } finally {
       setLoadingReport(false);
     }
+  };
+
+  const closeReport = () => {
+    setSelectedReportAnalysisId(null);
+    setActiveReport(null);
+    try {
+      if (analysisPageCompany) {
+        sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "analysis", company: analysisPageCompany, role: analysisPageRole }));
+      } else if (pastAnalysesCompany) {
+        sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "pastAnalyses", company: pastAnalysesCompany, role: pastAnalysesRole, initialRepoId: selectedPastRepoId }));
+      } else {
+        sessionStorage.removeItem("debtlens_active_user_view");
+      }
+    } catch { }
   };
 
   useEffect(() => {
@@ -660,6 +999,27 @@ export default function UserDashboard() {
       fetchAdminCompanies();
       fetchMyPendingInvitations();
       fetchMemberCompanies();
+
+      // Automatically restore whatever exact page / view / modal the user was on before refresh
+      try {
+        const savedViewStr = sessionStorage.getItem("debtlens_active_user_view");
+        if (savedViewStr) {
+          const savedView = JSON.parse(savedViewStr);
+          if (savedView.type === "analysis" && savedView.company) {
+            openAnalysisPage(savedView.company, savedView.role || "admin");
+          } else if (savedView.type === "pastAnalyses" && savedView.company) {
+            openPastAnalysesPage(savedView.company, savedView.role || "admin", savedView.initialRepoId);
+          } else if (savedView.type === "report" && savedView.analysisId) {
+            handleOpenReport(savedView.analysisId);
+          } else if (savedView.type === "invite" && savedView.company) {
+            openInviteModal(savedView.company);
+          } else if (savedView.type === "manage" && savedView.company) {
+            openManageModal(savedView.company);
+          } else if (savedView.type === "create") {
+            openCreateModal();
+          }
+        }
+      } catch { }
     }
   }, [isLoading, isAuthenticated]);
 
@@ -701,21 +1061,34 @@ export default function UserDashboard() {
 
             // 1. Update analysis status map
             if (repositoryId) {
+              const isDone = status === "COMPLETED" || status === "FAILED" || status === "CANCELLED";
+              const completedTime = isDone ? new Date().toISOString() : undefined;
+              const completedTimestamp = isDone ? Date.now() : undefined;
+
+              const statusData = {
+                analysisId: jobId,
+                status: status,
+                stage: stage || (status === "RUNNING" ? "ML_PREDICTION" : status === "QUEUED" ? "CLONING_REPO" : status),
+                message: message,
+                totalClasses: totalClasses,
+                completedAt: completedTime,
+                completedTimestamp: completedTimestamp,
+                startedAt: new Date().toISOString(),
+              };
+
               setAnalysisStatusMap((prev) => ({
                 ...prev,
                 [repositoryId]: {
-                  analysisId: jobId,
-                  status: status,
-                  stage: stage || (status === "RUNNING" ? "ML_PREDICTION" : status === "QUEUED" ? "CLONING_REPO" : status),
-                  message: message,
-                  totalClasses: totalClasses,
-                  completedAt: status === "COMPLETED" || status === "FAILED" ? new Date().toISOString() : prev[repositoryId]?.completedAt,
-                  startedAt: prev[repositoryId]?.startedAt || new Date().toISOString(),
+                  ...prev[repositoryId],
+                  ...statusData,
+                  completedAt: completedTime || prev[repositoryId]?.completedAt,
+                  completedTimestamp: completedTimestamp || prev[repositoryId]?.completedTimestamp,
                 },
               }));
 
-              // 2. Update analyzing spinner state
-              if (status === "COMPLETED" || status === "FAILED") {
+              // 2. Update analyzing spinner state and localStorage cache
+              if (isDone) {
+                saveRecentAnalysisToStorage(repositoryId, statusData);
                 setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: false }));
               } else if (status === "RUNNING" || status === "QUEUED") {
                 setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: true }));
@@ -760,7 +1133,7 @@ export default function UserDashboard() {
             // 4. Trigger live toast notification
             const toastType = status === "COMPLETED" ? "success" : status === "FAILED" ? "error" : status === "RUNNING" ? "info" : "warning";
             const toastTitle = `Analysis #${jobId} ${status}`;
-            const toastMsg = message || `Repository '${repositoryName || repositoryId}' (${branch || "main"}) is now ${status}.`;
+            const toastMsg = message || `Repository '${repositoryName || repositoryId}' is now ${status}.`;
             setLiveToast({
               id: `${jobId}-${status}-${Date.now()}`,
               type: toastType,
@@ -848,6 +1221,9 @@ export default function UserDashboard() {
   // ── Create Modal Actions ──
   const openCreateModal = () => {
     setIsModalOpen(true);
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "create" }));
+    } catch { }
     setStep(1);
     setOrgInput("");
     setOrgError("");
@@ -864,6 +1240,9 @@ export default function UserDashboard() {
 
   const closeCreateModal = () => {
     setIsModalOpen(false);
+    try {
+      sessionStorage.removeItem("debtlens_active_user_view");
+    } catch { }
   };
 
   // Helper: Extract organization login slug STRICTLY from a GitHub URL
@@ -910,7 +1289,8 @@ export default function UserDashboard() {
       }
 
       // 1. Check organization info
-      const orgRes = await fetch(`${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}`, { headers });
+      const queryParam = installationIdFromUrl ? `?installationId=${installationIdFromUrl}` : "";
+      const orgRes = await fetch(`${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}${queryParam}`, { headers });
       if (!orgRes.ok) {
         const errData = await orgRes.json().catch(() => ({}));
         throw new Error(errData.message || `GitHub Organization '${orgSlug}' not found`);
@@ -919,7 +1299,7 @@ export default function UserDashboard() {
 
       // 2. Validate user membership in this org
       const memberRes = await fetch(
-        `${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}/validate-my-membership`,
+        `${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}/validate-my-membership${queryParam}`,
         { headers }
       );
 
@@ -943,7 +1323,7 @@ export default function UserDashboard() {
       setCompanyNameInput(orgData.name || orgData.login);
 
       // Load repos for step 2
-      fetchOrgRepos(orgData.login, token);
+      fetchOrgRepos(orgData.login, token, installationIdFromUrl || undefined);
       setStep(2);
     } catch (err: any) {
       setOrgError(err.message || "Failed to verify organization. Please check the organization URL and try again.");
@@ -953,14 +1333,15 @@ export default function UserDashboard() {
   };
 
   // Step 2: Fetch Org Repositories
-  const fetchOrgRepos = async (orgName: string, token?: string) => {
+  const fetchOrgRepos = async (orgName: string, token?: string, instId?: number) => {
     setLoadingRepos(true);
     try {
       const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const res = await fetch(`${API_BASE_URL}/github/orgs/${orgName}/repos`, { headers });
+      const queryParam = instId ? `?installationId=${instId}` : "";
+      const res = await fetch(`${API_BASE_URL}/github/orgs/${orgName}/repos${queryParam}`, { headers });
       if (res.ok) {
         const repos: GithubRepo[] = await res.json();
         setAvailableRepos(repos);
@@ -978,7 +1359,7 @@ export default function UserDashboard() {
   };
 
   // Step 2: Fetch Contributors for a specific repo
-  const handleInspectContributors = async (orgLogin: string, repoName: string) => {
+  const handleInspectContributors = async (orgLogin: string, repoName: string, instId?: number) => {
     if (activeRepoForContributors === repoName) {
       setActiveRepoForContributors(null);
       return;
@@ -999,9 +1380,11 @@ export default function UserDashboard() {
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
+      const effectiveInstId = instId || installationIdFromUrl;
+      const queryParam = effectiveInstId ? `?installationId=${effectiveInstId}` : "";
 
       const res = await fetch(
-        `${API_BASE_URL}/github/repos/${orgLogin}/${repoName}/contributors`,
+        `${API_BASE_URL}/github/repos/${orgLogin}/${repoName}/contributors${queryParam}`,
         { headers }
       );
 
@@ -1066,6 +1449,7 @@ export default function UserDashboard() {
         companyName: companyNameInput.trim(),
         githubOrganizationName: verifiedOrg!.login,
         selectedRepositories: selectedReposPayload,
+        githubInstallationId: installationIdFromUrl || undefined,
       };
 
       const res = await fetch(`${API_BASE_URL}/companies`, {
@@ -1098,6 +1482,9 @@ export default function UserDashboard() {
   // ── Manage Existing Company Repositories ──
   const openManageModal = async (company: CompanyAdminItem) => {
     setManageCompany(company);
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "manage", company }));
+    } catch { }
     setNewlySelectedRepoIds([]);
     setAddReposError("");
     setAddReposSuccess(false);
@@ -1122,6 +1509,39 @@ export default function UserDashboard() {
       console.error("Failed to load company available repos:", err);
     } finally {
       setLoadingCompanyRepos(false);
+    }
+  };
+
+  const handleLinkInstallation = async (companyId: number, instId: number) => {
+    setLinkingInstallation(true);
+    setAddReposError("");
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+
+      const res = await fetch(`${API_BASE_URL}/companies/${companyId}/github-installation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ installationId: instId }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to link GitHub App installation");
+      }
+
+      const updatedCompany: CompanyAdminItem = await res.json();
+      setManageCompany(updatedCompany);
+      await fetchAdminCompanies();
+    } catch (err: any) {
+      setAddReposError(err.message || "Failed to link GitHub App installation");
+    } finally {
+      setLinkingInstallation(false);
     }
   };
 
@@ -1186,6 +1606,9 @@ export default function UserDashboard() {
 
       setTimeout(() => {
         setManageCompany(null);
+        try {
+          sessionStorage.removeItem("debtlens_active_user_view");
+        } catch { }
       }, 1200);
     } catch (err: any) {
       setAddReposError(err.message || "Failed to add repositories");
@@ -1194,10 +1617,12 @@ export default function UserDashboard() {
     }
   };
 
-  // ── Invite Contributors Modal Actions ──
+  // ── Invite Contributors Modal Actions (with Instant 0ms SWR Caching) ──
   const openInviteModal = async (company: CompanyAdminItem) => {
     setInviteCompany(company);
-    setCompanyRepos([]);
+    try {
+      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "invite", company }));
+    } catch { }
     setSelectedRepoForInvite(null);
     setRepoContributorsList([]);
     setExistingInvitations([]);
@@ -1205,7 +1630,17 @@ export default function UserDashboard() {
     setContributorSearchQuery("");
     setInviteError("");
     setInviteSuccess(null);
-    setLoadingCompanyReposForInvite(true);
+
+    // Fast In-Memory Cache Check for Company Repos
+    const cachedCompanyRepos = companyReposCacheRef.current[company.companyId];
+    if (cachedCompanyRepos && cachedCompanyRepos.repos.length > 0) {
+      setCompanyRepos(cachedCompanyRepos.repos);
+      setLoadingCompanyReposForInvite(false);
+      loadRepoContributorsAndInvites(company, cachedCompanyRepos.repos[0]);
+    } else {
+      setCompanyRepos([]);
+      setLoadingCompanyReposForInvite(true);
+    }
 
     try {
       let token = "";
@@ -1219,9 +1654,14 @@ export default function UserDashboard() {
       const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
       if (res.ok) {
         const repos: CompanyRepoItem[] = await res.json();
-        setCompanyRepos(repos);
-        if (repos.length > 0) {
-          loadRepoContributorsAndInvites(company, repos[0], token);
+        const validRepos = Array.isArray(repos) ? repos : [];
+        companyReposCacheRef.current[company.companyId] = {
+          repos: validRepos,
+          timestamp: Date.now(),
+        };
+        setCompanyRepos(validRepos);
+        if (!cachedCompanyRepos && validRepos.length > 0) {
+          loadRepoContributorsAndInvites(company, validRepos[0], token);
         }
       }
     } catch (err) {
@@ -1240,7 +1680,18 @@ export default function UserDashboard() {
     setSelectedContributorsForInvite({});
     setInviteError("");
     setInviteSuccess(null);
-    setLoadingRepoContributors(true);
+
+    // Fast In-Memory Cache Check for instant 0ms repository switching
+    const cached = repoContributorsCacheRef.current[repo.repositoryId];
+    if (cached) {
+      setRepoContributorsList(cached.contributors);
+      setExistingInvitations(cached.invitations);
+      setLoadingRepoContributors(false);
+    } else {
+      setRepoContributorsList([]);
+      setExistingInvitations([]);
+      setLoadingRepoContributors(true);
+    }
 
     try {
       let token = tokenParam;
@@ -1267,19 +1718,28 @@ export default function UserDashboard() {
 
       const [contribsRes, invitesRes] = await Promise.all([contribsPromise, invitesPromise]);
 
+      let contribsData: RepoContributor[] = [];
       if (contribsRes.ok) {
-        const contribsData: RepoContributor[] = await contribsRes.json();
+        contribsData = await contribsRes.json();
         setRepoContributorsList(contribsData);
-      } else {
+      } else if (!cached) {
         setRepoContributorsList([]);
       }
 
+      let invitesData: InvitationResponse[] = [];
       if (invitesRes.ok) {
-        const invitesData: InvitationResponse[] = await invitesRes.json();
+        invitesData = await invitesRes.json();
         setExistingInvitations(invitesData);
-      } else {
+      } else if (!cached) {
         setExistingInvitations([]);
       }
+
+      // Update in-memory fast cache
+      repoContributorsCacheRef.current[repo.repositoryId] = {
+        contributors: contribsData,
+        invitations: invitesData,
+        timestamp: Date.now(),
+      };
     } catch (err) {
       console.error("Failed to load contributors or invitations:", err);
     } finally {
@@ -1377,7 +1837,7 @@ export default function UserDashboard() {
       setInviteSuccess(`Successfully sent ${created.length} invitation${created.length > 1 ? "s" : ""}! Invitation email(s) dispatched.`);
       setSelectedContributorsForInvite({});
 
-      // Refresh invitations list
+      // Refresh invitations list & update cache
       const invitesRes = await fetch(
         `${API_BASE_URL}/invitations/repository/${selectedRepoForInvite.repositoryId}`,
         { headers }
@@ -1385,6 +1845,12 @@ export default function UserDashboard() {
       if (invitesRes.ok) {
         const invitesData: InvitationResponse[] = await invitesRes.json();
         setExistingInvitations(invitesData);
+        const currentCached = repoContributorsCacheRef.current[selectedRepoForInvite.repositoryId];
+        repoContributorsCacheRef.current[selectedRepoForInvite.repositoryId] = {
+          contributors: currentCached ? currentCached.contributors : repoContributorsList,
+          invitations: invitesData,
+          timestamp: Date.now(),
+        };
       }
     } catch (err: any) {
       setInviteError(err.message || "Failed to send invitations");
@@ -1670,10 +2136,30 @@ export default function UserDashboard() {
                     .filter(r => r.repositoryName.toLowerCase().includes(analysisRepoSearch.toLowerCase()))
                     .map((repo) => {
                       const isAnalyzing = !!analyzingRepoIds[repo.repositoryId];
+                      const isCancelling = !!cancellingRepoIds[repo.repositoryId];
                       const currentStatus = analysisStatusMap[repo.repositoryId];
-                      const isCompleted = currentStatus?.status === "COMPLETED";
-                      const isFailed = currentStatus?.status === "FAILED";
-                      const isQueuedOrRunning = isAnalyzing || (currentStatus && (currentStatus.status === "QUEUED" || currentStatus.status === "PROCESSING" || currentStatus.status === "RUNNING"));
+
+                      // 10-minute expiry calculation for completed, cancelled, or failed status
+                      let isExpired = false;
+                      let remainingSeconds = 0;
+                      if (currentStatus?.completedAt && (currentStatus.status === "COMPLETED" || currentStatus.status === "FAILED" || currentStatus.status === "CANCELLED")) {
+                        const completedTime = (currentStatus as any).completedTimestamp || parseServerDate(currentStatus.completedAt);
+                        const elapsed = currentTime - completedTime;
+                        if (elapsed >= TEN_MINUTES_MS || elapsed < 0) {
+                          if (elapsed >= TEN_MINUTES_MS) {
+                            isExpired = true;
+                          } else {
+                            remainingSeconds = Math.floor(TEN_MINUTES_MS / 1000);
+                          }
+                        } else {
+                          remainingSeconds = Math.max(0, Math.floor((TEN_MINUTES_MS - elapsed) / 1000));
+                        }
+                      }
+
+                      const isCompleted = !isExpired && currentStatus?.status === "COMPLETED";
+                      const isCancelled = !isExpired && currentStatus?.status === "CANCELLED";
+                      const isFailed = !isExpired && currentStatus?.status === "FAILED";
+                      const isQueuedOrRunning = isAnalyzing || (!isExpired && currentStatus && (currentStatus.status === "QUEUED" || currentStatus.status === "PROCESSING" || currentStatus.status === "RUNNING"));
 
                       return (
                         <div
@@ -1696,7 +2182,7 @@ export default function UserDashboard() {
                                   <h3 className="font-bold text-base text-foreground truncate">{repo.repositoryName}</h3>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono">
-                                      branch: {repo.defaultBranch || "main"}
+                                      Java Repository
                                     </span>
                                   </div>
                                 </div>
@@ -1745,21 +2231,42 @@ export default function UserDashboard() {
                                 </p>
                               </div>
                             ) : isCompleted ? (
-                              <div className="my-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-xs flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                  <div>
-                                    <p className="font-semibold text-white">Analysis Succeeded</p>
-                                    <p className="text-[11px] text-emerald-300">
-                                      {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking.
-                                    </p>
+                              <div className="my-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-xs space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 font-semibold text-white">
+                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                                    <span>Analysis Succeeded</span>
                                   </div>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                                    <Clock size={10} />
+                                    {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s left
+                                  </span>
                                 </div>
+                                <p className="text-[11px] text-emerald-300/90 leading-relaxed">
+                                  {currentStatus?.totalClasses ?? 0} classes analyzed successfully with ML predictions & technical debt ranking. Results remain available for 10 minutes.
+                                </p>
+                              </div>
+                            ) : isCancelled ? (
+                              <div className="my-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle size={15} className="shrink-0 text-amber-400" />
+                                  <span>{currentStatus?.message || "Analysis was cancelled by user."}</span>
+                                </div>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                  <Clock size={10} />
+                                  {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s
+                                </span>
                               </div>
                             ) : isFailed ? (
-                              <div className="my-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center gap-2">
-                                <AlertCircle size={15} className="shrink-0" />
-                                <span>{currentStatus?.message || "Analysis failed to complete. You can retry starting the job."}</span>
+                              <div className="my-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle size={15} className="shrink-0" />
+                                  <span>{currentStatus?.message || "Analysis failed to complete. You can retry starting the job."}</span>
+                                </div>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 shrink-0">
+                                  <Clock size={10} />
+                                  {Math.floor(remainingSeconds / 60)}m {String(remainingSeconds % 60).padStart(2, "0")}s
+                                </span>
                               </div>
                             ) : (
                               <div className="my-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
@@ -1771,6 +2278,23 @@ export default function UserDashboard() {
 
                           {/* Action Buttons */}
                           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                            {isQueuedOrRunning && (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelAnalysis(repo)}
+                                disabled={isCancelling}
+                                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 shadow-sm"
+                                title="Stop ongoing analysis"
+                              >
+                                {isCancelling ? (
+                                  <Loader2 size={13} className="animate-spin text-rose-400" />
+                                ) : (
+                                  <StopCircle size={13} className="text-rose-400" />
+                                )}
+                                <span>{isCancelling ? "Cancelling..." : "Cancel Analysis"}</span>
+                              </button>
+                            )}
+
                             {isCompleted && currentStatus?.analysisId && (
                               <button
                                 type="button"
@@ -1788,13 +2312,15 @@ export default function UserDashboard() {
                               disabled={isQueuedOrRunning}
                               className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-sm disabled:opacity-50 ${isCompleted
                                   ? "bg-card border border-border hover:bg-muted text-foreground"
-                                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:scale-[1.02] active:scale-95"
+                                  : isQueuedOrRunning
+                                    ? "flex-1 bg-indigo-600/40 text-indigo-200 cursor-not-allowed border border-indigo-500/20"
+                                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:scale-[1.02] active:scale-95"
                                 }`}
                             >
                               {isQueuedOrRunning ? (
                                 <>
                                   <Loader2 size={13} className="animate-spin" />
-                                  <span>Analyzing...</span>
+                                  <span>Analyzing in Progress...</span>
                                 </>
                               ) : isCompleted ? (
                                 <>
@@ -1805,6 +2331,11 @@ export default function UserDashboard() {
                                 <>
                                   <Play size={12} className="fill-current" />
                                   <span>Retry Analysis</span>
+                                </>
+                              ) : isCancelled ? (
+                                <>
+                                  <Play size={12} className="fill-current" />
+                                  <span>Start Analysis</span>
                                 </>
                               ) : (
                                 <>
@@ -1831,7 +2362,12 @@ export default function UserDashboard() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setManageCompany(null)}
+                  onClick={() => {
+                    setManageCompany(null);
+                    try {
+                      sessionStorage.removeItem("debtlens_active_user_view");
+                    } catch { }
+                  }}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
                 >
                   <ArrowLeft size={14} /> Back to Companies
@@ -2075,7 +2611,7 @@ export default function UserDashboard() {
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs text-muted-foreground">
-                            <span className="font-mono text-[11px]">branch: {repo.defaultBranch || "main"}</span>
+                            <span className="font-mono text-[11px] text-muted-foreground">Linked Repository</span>
                             <a
                               href={repo.htmlUrl}
                               target="_blank"
@@ -2102,7 +2638,12 @@ export default function UserDashboard() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setInviteCompany(null)}
+                  onClick={() => {
+                    setInviteCompany(null);
+                    try {
+                      sessionStorage.removeItem("debtlens_active_user_view");
+                    } catch { }
+                  }}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
                 >
                   <ArrowLeft size={14} /> Back to Companies
@@ -2145,7 +2686,7 @@ export default function UserDashboard() {
                     {inviteCompany?.companyName || "Organization"} Contributor Invitations
                   </h1>
                   <p className="text-sm text-slate-300 leading-relaxed">
-                    Select a repository below, then invite repository contributors directly by entering their email address to grant them access to technical debt metrics and refactoring insights.
+                    Select a repository below to invite any contributor across all repository branches directly via email to grant them access to technical debt metrics and refactoring insights.
                   </p>
                 </div>
 
@@ -2190,11 +2731,8 @@ export default function UserDashboard() {
                             : "bg-card text-foreground border-border hover:border-slate-700 hover:bg-muted"
                           }`}
                       >
-                        <GitBranch size={13} />
+                        <Code2 size={14} className={isSelected ? "text-white" : "text-emerald-400"} />
                         <span>{repo.repositoryName}</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono ${isSelected ? "bg-emerald-700 text-emerald-100" : "bg-muted text-muted-foreground"}`}>
-                          {repo.defaultBranch || "main"}
-                        </span>
                       </button>
                     );
                   })}
@@ -3271,7 +3809,28 @@ export default function UserDashboard() {
                               </div>
                               <div>
                                 <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                                  {company?.githubInstallationId ? (
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                      <Check size={9} /> App
+                                    </span>
+                                  ) : installationIdFromUrl ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                      }}
+                                      disabled={linkingInstallation}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
+                                      title="Click to link newly installed GitHub App"
+                                    >
+                                      {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                      Link App
+                                    </button>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
@@ -3817,6 +4376,33 @@ export default function UserDashboard() {
               {/* ──── STEP 1: VERIFY ORG ──── */}
               {step === 1 && (
                 <div className="dl-step flex flex-col gap-5">
+                  {/* GitHub App Connection Banner */}
+                  {installationIdFromUrl ? (
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-400/25 flex items-center justify-between text-xs text-emerald-300">
+                      <div className="flex items-center gap-2">
+                        <Check size={16} className="text-emerald-400 shrink-0" />
+                        <span>
+                          <strong>GitHub App Connected</strong> (Installation ID: <code>{installationIdFromUrl}</code>). This company will be created with dedicated GitHub App authorization.
+                        </span>
+                      </div>
+                    </div>
+                  ) : appInfo?.configured ? (
+                    <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={15} className="text-indigo-400 shrink-0" />
+                        <span>Install the DebtLens GitHub App to your organization for higher rate limits.</span>
+                      </div>
+                      <a
+                        href={appInfo.installUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shrink-0"
+                      >
+                        Install App <ArrowRight size={12} />
+                      </a>
+                    </div>
+                  ) : null}
+
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-1.5">
                       GitHub Organization URL
@@ -4121,7 +4707,7 @@ export default function UserDashboard() {
               <button
                 type="button"
                 aria-label="Close report"
-                onClick={() => setSelectedReportAnalysisId(null)}
+                onClick={closeReport}
                 className="p-2 rounded-xl hover:bg-white/10 text-indigo-200 hover:text-white transition-colors"
               >
                 <X size={18} />
@@ -4447,7 +5033,7 @@ export default function UserDashboard() {
               <button
                 type="button"
                 aria-label="Close report"
-                onClick={() => setSelectedReportAnalysisId(null)}
+                onClick={closeReport}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
               >
                 Close Report

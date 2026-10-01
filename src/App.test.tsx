@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import RegisterPage from './pages/RegisterPage'
+import { API_BASE_URL } from './config/api'
 
 const auth0 = vi.hoisted(() => ({
   useAuth0: vi.fn(),
@@ -116,7 +117,7 @@ describe('DebtLens core UI flows', () => {
 
     expect(await screen.findByText('Registration successful! Redirecting to login...')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/registration/register',
+      `${API_BASE_URL}/registration/register`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
