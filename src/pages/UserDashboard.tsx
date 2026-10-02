@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   Building2,
@@ -42,6 +42,7 @@ import {
   StopCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
+import { createDashboardCache } from "../lib/dashboardCache";
 
 interface RefactoringAction {
   type: string;
@@ -176,25 +177,24 @@ interface PastAnalysisJob {
 
 export default function UserDashboard() {
   const { user: authUser, logout, getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+  const cacheUserId = isAuthenticated ? authUser?.sub ?? "" : "";
+  const currentUserRef = useRef(cacheUserId);
+  currentUserRef.current = cacheUserId;
+  const apiCache = useMemo(() => createDashboardCache(
+    API_BASE_URL, cacheUserId, () => currentUserRef.current === cacheUserId,
+  ), [cacheUserId]);
+  const viewStorageKey = `debtlens_active_user_view:${cacheUserId}`;
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "admin" | "member">("all");
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
 
-  // Live admin companies from backend (with Fast Session Cache for 0ms initial load)
-  const [adminCompaniesList, setAdminCompaniesList] = useState<CompanyAdminItem[]>(() => {
-    try {
-      const saved = sessionStorage.getItem("debtlens_cached_admin_companies");
-      if (saved) return JSON.parse(saved);
-    } catch { }
-    return [];
-  });
-  const [loadingCompanies, setLoadingCompanies] = useState(() => {
-    try {
-      return !sessionStorage.getItem("debtlens_cached_admin_companies");
-    } catch {
-      return true;
-    }
-  });
+  // Session snapshots are scoped to the signed-in account and expire quickly.
+  const [adminCompaniesList, setAdminCompaniesList] = useState<CompanyAdminItem[]>(
+    () => apiCache.read<CompanyAdminItem[]>(`${API_BASE_URL}/companies/my-admin`) ?? [],
+  );
+  const [loadingCompanies, setLoadingCompanies] = useState(
+    () => apiCache.read(`${API_BASE_URL}/companies/my-admin`) === null,
+  );
 
   // ── Create Company Modal State ──
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -260,13 +260,9 @@ export default function UserDashboard() {
   // ── My Pending Invitations & Member Companies State ──
   const [myPendingInvitations, setMyPendingInvitations] = useState<InvitationResponse[]>([]);
   const [processingInvitationId, setProcessingInvitationId] = useState<number | null>(null);
-  const [memberCompaniesList, setMemberCompaniesList] = useState<CompanyAdminItem[]>(() => {
-    try {
-      const saved = sessionStorage.getItem("debtlens_cached_member_companies");
-      if (saved) return JSON.parse(saved);
-    } catch { }
-    return [];
-  });
+  const [memberCompaniesList, setMemberCompaniesList] = useState<CompanyAdminItem[]>(
+    () => apiCache.read<CompanyAdminItem[]>(`${API_BASE_URL}/companies/my-member`) ?? [],
+  );
   const [loadingMemberCompanies, setLoadingMemberCompanies] = useState(false);
   const [invitationActionMsg, setInvitationActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -310,6 +306,33 @@ export default function UserDashboard() {
   const companyAnalysisWorkspaceCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; statusMap: Record<number, any>; timestamp: number }>>({});
   const reportsCacheRef = useRef<Record<number, TechnicalDebtReport>>({});
 
+  useEffect(() => {
+    // Discard the previous account's rendered data as well as component caches.
+    repoContributorsCacheRef.current = {};
+    companyReposCacheRef.current = {};
+    companyPastAnalysesCacheRef.current = {};
+    companyAnalysisWorkspaceCacheRef.current = {};
+    reportsCacheRef.current = {};
+    setAdminCompaniesList(apiCache.read<CompanyAdminItem[]>(`${API_BASE_URL}/companies/my-admin`) ?? []);
+    setMemberCompaniesList(apiCache.read<CompanyAdminItem[]>(`${API_BASE_URL}/companies/my-member`) ?? []);
+    setContributorsMap({});
+    setRepoContributorsList([]);
+    setExistingInvitations([]);
+    setMyPendingInvitations([]);
+    setActiveReport(null);
+    setAnalysisStatusMap({});
+    setAnalyzingRepoIds({});
+    setAnalysisPageCompany(null);
+    setPastAnalysesCompany(null);
+    setManageCompany(null);
+    setInviteCompany(null);
+    try {
+      sessionStorage.removeItem("debtlens_cached_admin_companies");
+      sessionStorage.removeItem("debtlens_cached_member_companies");
+      sessionStorage.removeItem("debtlens_active_user_view");
+    } catch { }
+  }, [apiCache]);
+
   // 10-Minute Results Retention Window for Completed Analyses
   const TEN_MINUTES_MS = 10 * 60 * 1000;
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
@@ -333,7 +356,7 @@ export default function UserDashboard() {
 
   const saveRecentAnalysisToStorage = (repoId: number, data: any) => {
     try {
-      localStorage.setItem(`debtlens_analysis_recent_${repoId}`, JSON.stringify({
+      localStorage.setItem(`debtlens_analysis_recent_${cacheUserId}_${repoId}`, JSON.stringify({
         ...data,
         completedTimestamp: data.completedTimestamp || Date.now(),
       }));
@@ -342,14 +365,14 @@ export default function UserDashboard() {
 
   const getRecentAnalysisFromStorage = (repoId: number): any | null => {
     try {
-      const item = localStorage.getItem(`debtlens_analysis_recent_${repoId}`);
+      const item = localStorage.getItem(`debtlens_analysis_recent_${cacheUserId}_${repoId}`);
       if (!item) return null;
       const parsed = JSON.parse(item);
       const timestamp = parsed.completedTimestamp || parseServerDate(parsed.completedAt);
       if (Date.now() - timestamp < TEN_MINUTES_MS) {
         return parsed;
       }
-      localStorage.removeItem(`debtlens_analysis_recent_${repoId}`);
+      localStorage.removeItem(`debtlens_analysis_recent_${cacheUserId}_${repoId}`);
       return null;
     } catch {
       return null;
@@ -375,7 +398,7 @@ export default function UserDashboard() {
 
     const checkAppInfo = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/github/app/info`);
+        const res = await apiCache.fetch(`${API_BASE_URL}/github/app/info`);
         if (res.ok) {
           const data = await res.json();
           setAppInfo(data);
@@ -385,7 +408,7 @@ export default function UserDashboard() {
       }
     };
     checkAppInfo();
-  }, []);
+  }, [apiCache]);
 
   // ── Technical Debt Report & Recommendations Modal State ──
   const [selectedReportAnalysisId, setSelectedReportAnalysisId] = useState<number | null>(null);
@@ -417,7 +440,7 @@ export default function UserDashboard() {
   // Fetch real admin companies from backend
   const fetchAdminCompanies = async () => {
     try {
-      setLoadingCompanies(true);
+      setLoadingCompanies(apiCache.read(`${API_BASE_URL}/companies/my-admin`) === null);
       let token = "";
       try {
         token = await getAccessTokenSilently();
@@ -428,14 +451,11 @@ export default function UserDashboard() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const res = await fetch(`${API_BASE_URL}/companies/my-admin`, { headers });
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/my-admin`, { headers });
       if (res.ok) {
         const data = await res.json();
         const valid = Array.isArray(data) ? data.filter(Boolean) : [];
         setAdminCompaniesList(valid);
-        try {
-          sessionStorage.setItem("debtlens_cached_admin_companies", JSON.stringify(valid));
-        } catch { }
       }
     } catch (err) {
       console.warn("Could not fetch admin companies:", err);
@@ -455,7 +475,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/invitations/my-pending`, { headers });
+      const res = await apiCache.fetch(`${API_BASE_URL}/invitations/my-pending`, { headers });
       if (res.ok) {
         const data = await res.json();
         setMyPendingInvitations(Array.isArray(data) ? data.filter(Boolean) : []);
@@ -468,7 +488,7 @@ export default function UserDashboard() {
   // Fetch real member companies
   const fetchMemberCompanies = async () => {
     try {
-      setLoadingMemberCompanies(true);
+      setLoadingMemberCompanies(apiCache.read(`${API_BASE_URL}/companies/my-member`) === null);
       let token = "";
       try {
         token = await getAccessTokenSilently();
@@ -477,14 +497,11 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/companies/my-member`, { headers });
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/my-member`, { headers });
       if (res.ok) {
         const data = await res.json();
         const valid = Array.isArray(data) ? data.filter(Boolean) : [];
         setMemberCompaniesList(valid);
-        try {
-          sessionStorage.setItem("debtlens_cached_member_companies", JSON.stringify(valid));
-        } catch { }
       }
     } catch (err) {
       console.warn("Could not fetch member companies:", err);
@@ -506,7 +523,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/invitations/${invitation.invitationId}/accept`, {
+      const res = await apiCache.fetch(`${API_BASE_URL}/invitations/${invitation.invitationId}/accept`, {
         method: "POST",
         headers,
       });
@@ -545,7 +562,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/invitations/${invitation.invitationId}/reject`, {
+      const res = await apiCache.fetch(`${API_BASE_URL}/invitations/${invitation.invitationId}/reject`, {
         method: "POST",
         headers,
       });
@@ -579,7 +596,7 @@ export default function UserDashboard() {
 
     try {
       sessionStorage.setItem("debtlens_active_analysis_company", JSON.stringify({ company, role }));
-      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "analysis", company, role }));
+      sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "analysis", company, role }));
     } catch { }
 
     // 0ms Instant Loading from Fast In-Memory Cache if available
@@ -602,8 +619,8 @@ export default function UserDashboard() {
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const [reposRes, analysisRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
-        fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
+        apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
+        apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
       ]);
 
       let reposList: CompanyRepoItem[] = [];
@@ -701,7 +718,7 @@ export default function UserDashboard() {
     setAnalysisRepoSearch("");
     try {
       sessionStorage.removeItem("debtlens_active_analysis_company");
-      sessionStorage.removeItem("debtlens_active_user_view");
+      sessionStorage.removeItem(viewStorageKey);
     } catch { }
   };
 
@@ -715,7 +732,7 @@ export default function UserDashboard() {
     setPastAnalysesStatusFilter("ALL");
 
     try {
-      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "pastAnalyses", company, role, initialRepoId }));
+      sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "pastAnalyses", company, role, initialRepoId }));
     } catch { }
 
     // 0ms Instant Loading from Fast In-Memory Cache if available
@@ -740,8 +757,8 @@ export default function UserDashboard() {
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const [reposRes, analysisRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
-        fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
+        apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
+        apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
       ]);
 
       let reposData: CompanyRepoItem[] = [];
@@ -787,7 +804,7 @@ export default function UserDashboard() {
     setSelectedPastRepoId("ALL");
     setPastAnalysesError("");
     try {
-      sessionStorage.removeItem("debtlens_active_user_view");
+      sessionStorage.removeItem(viewStorageKey);
     } catch { }
   };
 
@@ -803,7 +820,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(
+      const res = await apiCache.fetch(
         `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`,
         {
           method: "POST",
@@ -837,7 +854,7 @@ export default function UserDashboard() {
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          const pollRes = await fetch(`${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`, { headers });
+          const pollRes = await apiCache.fetch(`${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`, { headers });
           if (pollRes.ok) {
             const jobs = await pollRes.json();
             if (Array.isArray(jobs) && jobs.length > 0) {
@@ -899,7 +916,7 @@ export default function UserDashboard() {
         ? `${API_BASE_URL}/analysis/${currentAnalysisId}/cancel`
         : `${API_BASE_URL}/repositories/${repo.repositoryId}/analysis/cancel`;
 
-      const res = await fetch(url, {
+      const res = await apiCache.fetch(url, {
         method: "POST",
         headers,
       });
@@ -940,7 +957,7 @@ export default function UserDashboard() {
     setReportError("");
 
     try {
-      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "report", analysisId }));
+      sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "report", analysisId }));
     } catch { }
 
     // 0ms Instant Loading from Fast Reports Cache if available
@@ -962,7 +979,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/analysis/${analysisId}/report`, { headers });
+      const res = await apiCache.fetch(`${API_BASE_URL}/analysis/${analysisId}/report`, { headers });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || "Failed to load technical debt report");
@@ -985,24 +1002,24 @@ export default function UserDashboard() {
     setActiveReport(null);
     try {
       if (analysisPageCompany) {
-        sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "analysis", company: analysisPageCompany, role: analysisPageRole }));
+        sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "analysis", company: analysisPageCompany, role: analysisPageRole }));
       } else if (pastAnalysesCompany) {
-        sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "pastAnalyses", company: pastAnalysesCompany, role: pastAnalysesRole, initialRepoId: selectedPastRepoId }));
+        sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "pastAnalyses", company: pastAnalysesCompany, role: pastAnalysesRole, initialRepoId: selectedPastRepoId }));
       } else {
-        sessionStorage.removeItem("debtlens_active_user_view");
+        sessionStorage.removeItem(viewStorageKey);
       }
     } catch { }
   };
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!isLoading && isAuthenticated && cacheUserId) {
       fetchAdminCompanies();
       fetchMyPendingInvitations();
       fetchMemberCompanies();
 
       // Automatically restore whatever exact page / view / modal the user was on before refresh
       try {
-        const savedViewStr = sessionStorage.getItem("debtlens_active_user_view");
+        const savedViewStr = sessionStorage.getItem(viewStorageKey);
         if (savedViewStr) {
           const savedView = JSON.parse(savedViewStr);
           if (savedView.type === "analysis" && savedView.company) {
@@ -1021,7 +1038,7 @@ export default function UserDashboard() {
         }
       } catch { }
     }
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, cacheUserId]);
 
   // ── WebSocket Listener for Live Analysis Progress ──
   useEffect(() => {
@@ -1181,7 +1198,7 @@ export default function UserDashboard() {
         ws.close();
       }
     };
-  }, []);
+  }, [cacheUserId]);
 
   // Auto-dismiss live toast after 7 seconds
   useEffect(() => {
@@ -1222,7 +1239,7 @@ export default function UserDashboard() {
   const openCreateModal = () => {
     setIsModalOpen(true);
     try {
-      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "create" }));
+      sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "create" }));
     } catch { }
     setStep(1);
     setOrgInput("");
@@ -1241,7 +1258,7 @@ export default function UserDashboard() {
   const closeCreateModal = () => {
     setIsModalOpen(false);
     try {
-      sessionStorage.removeItem("debtlens_active_user_view");
+      sessionStorage.removeItem(viewStorageKey);
     } catch { }
   };
 
@@ -1290,7 +1307,7 @@ export default function UserDashboard() {
 
       // 1. Check organization info
       const queryParam = installationIdFromUrl ? `?installationId=${installationIdFromUrl}` : "";
-      const orgRes = await fetch(`${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}${queryParam}`, { headers });
+      const orgRes = await apiCache.fetch(`${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}${queryParam}`, { headers });
       if (!orgRes.ok) {
         const errData = await orgRes.json().catch(() => ({}));
         throw new Error(errData.message || `GitHub Organization '${orgSlug}' not found`);
@@ -1298,7 +1315,7 @@ export default function UserDashboard() {
       const orgData = await orgRes.json();
 
       // 2. Validate user membership in this org
-      const memberRes = await fetch(
+      const memberRes = await apiCache.fetch(
         `${API_BASE_URL}/github/orgs/${encodeURIComponent(orgSlug)}/validate-my-membership${queryParam}`,
         { headers }
       );
@@ -1341,7 +1358,7 @@ export default function UserDashboard() {
         headers["Authorization"] = `Bearer ${token}`;
       }
       const queryParam = instId ? `?installationId=${instId}` : "";
-      const res = await fetch(`${API_BASE_URL}/github/orgs/${orgName}/repos${queryParam}`, { headers });
+      const res = await apiCache.fetch(`${API_BASE_URL}/github/orgs/${orgName}/repos${queryParam}`, { headers });
       if (res.ok) {
         const repos: GithubRepo[] = await res.json();
         setAvailableRepos(repos);
@@ -1367,9 +1384,6 @@ export default function UserDashboard() {
 
     setActiveRepoForContributors(repoName);
 
-    if (contributorsMap[repoName]) {
-      return; // already cached
-    }
 
     setLoadingContributors((prev) => ({ ...prev, [repoName]: true }));
     try {
@@ -1383,7 +1397,7 @@ export default function UserDashboard() {
       const effectiveInstId = instId || installationIdFromUrl;
       const queryParam = effectiveInstId ? `?installationId=${effectiveInstId}` : "";
 
-      const res = await fetch(
+      const res = await apiCache.fetch(
         `${API_BASE_URL}/github/repos/${orgLogin}/${repoName}/contributors${queryParam}`,
         { headers }
       );
@@ -1452,7 +1466,7 @@ export default function UserDashboard() {
         githubInstallationId: installationIdFromUrl || undefined,
       };
 
-      const res = await fetch(`${API_BASE_URL}/companies`, {
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1483,7 +1497,7 @@ export default function UserDashboard() {
   const openManageModal = async (company: CompanyAdminItem) => {
     setManageCompany(company);
     try {
-      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "manage", company }));
+      sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "manage", company }));
     } catch { }
     setNewlySelectedRepoIds([]);
     setAddReposError("");
@@ -1500,7 +1514,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/available-repositories`, { headers });
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/available-repositories`, { headers });
       if (res.ok) {
         const data: CompanyAvailableRepo[] = await res.json();
         setAvailableForCompany(data);
@@ -1521,7 +1535,7 @@ export default function UserDashboard() {
         token = await getAccessTokenSilently();
       } catch { }
 
-      const res = await fetch(`${API_BASE_URL}/companies/${companyId}/github-installation`, {
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${companyId}/github-installation`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1537,6 +1551,7 @@ export default function UserDashboard() {
 
       const updatedCompany: CompanyAdminItem = await res.json();
       setManageCompany(updatedCompany);
+      setContributorsMap({});
       await fetchAdminCompanies();
     } catch (err: any) {
       setAddReposError(err.message || "Failed to link GitHub App installation");
@@ -1561,7 +1576,7 @@ export default function UserDashboard() {
       setAddReposError("");
       setNewlySelectedRepoIds([...newlySelectedRepoIds, repoId]);
       if (manageCompany) {
-        handleInspectContributors(manageCompany.githubOrganizationName, repoName);
+        handleInspectContributors(manageCompany.githubOrganizationName, repoName, manageCompany.githubInstallationId ?? undefined);
       }
     }
   };
@@ -1587,7 +1602,7 @@ export default function UserDashboard() {
           defaultBranch: r.defaultBranch || "main",
         }));
 
-      const res = await fetch(`${API_BASE_URL}/companies/${manageCompany.companyId}/repositories`, {
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${manageCompany.companyId}/repositories`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1607,7 +1622,7 @@ export default function UserDashboard() {
       setTimeout(() => {
         setManageCompany(null);
         try {
-          sessionStorage.removeItem("debtlens_active_user_view");
+          sessionStorage.removeItem(viewStorageKey);
         } catch { }
       }, 1200);
     } catch (err: any) {
@@ -1621,7 +1636,7 @@ export default function UserDashboard() {
   const openInviteModal = async (company: CompanyAdminItem) => {
     setInviteCompany(company);
     try {
-      sessionStorage.setItem("debtlens_active_user_view", JSON.stringify({ type: "invite", company }));
+      sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "invite", company }));
     } catch { }
     setSelectedRepoForInvite(null);
     setRepoContributorsList([]);
@@ -1632,7 +1647,9 @@ export default function UserDashboard() {
     setInviteSuccess(null);
 
     // Fast In-Memory Cache Check for Company Repos
-    const cachedCompanyRepos = companyReposCacheRef.current[company.companyId];
+    const persistedRepos = apiCache.read<CompanyRepoItem[]>(`${API_BASE_URL}/companies/${company.companyId}/repositories`);
+    const cachedCompanyRepos = companyReposCacheRef.current[company.companyId]
+      ?? (persistedRepos ? { repos: persistedRepos, timestamp: Date.now() } : undefined);
     if (cachedCompanyRepos && cachedCompanyRepos.repos.length > 0) {
       setCompanyRepos(cachedCompanyRepos.repos);
       setLoadingCompanyReposForInvite(false);
@@ -1651,7 +1668,7 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers });
       if (res.ok) {
         const repos: CompanyRepoItem[] = await res.json();
         const validRepos = Array.isArray(repos) ? repos : [];
@@ -1682,7 +1699,11 @@ export default function UserDashboard() {
     setInviteSuccess(null);
 
     // Fast In-Memory Cache Check for instant 0ms repository switching
-    const cached = repoContributorsCacheRef.current[repo.repositoryId];
+    const installationId = company.githubInstallationId || installationIdFromUrl;
+    const contributorUrl = `${API_BASE_URL}/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors${installationId ? `?installationId=${installationId}` : ""}`;
+    const persistedContributors = apiCache.read<RepoContributor[]>(contributorUrl);
+    const cached = repoContributorsCacheRef.current[repo.repositoryId]
+      ?? (persistedContributors ? { contributors: persistedContributors, invitations: [], timestamp: Date.now() } : undefined);
     if (cached) {
       setRepoContributorsList(cached.contributors);
       setExistingInvitations(cached.invitations);
@@ -1708,13 +1729,13 @@ export default function UserDashboard() {
       const queryParam = effectiveInstId ? `?installationId=${effectiveInstId}` : "";
 
       // 1. Fetch live contributors from GitHub
-      const contribsPromise = fetch(
+      const contribsPromise = apiCache.fetch(
         `${API_BASE_URL}/github/repos/${company.githubOrganizationName}/${repo.repositoryName}/contributors${queryParam}`,
         { headers }
       );
 
       // 2. Fetch existing invitations for this repository
-      const invitesPromise = fetch(
+      const invitesPromise = apiCache.fetch(
         `${API_BASE_URL}/invitations/repository/${repo.repositoryId}`,
         { headers }
       );
@@ -1825,7 +1846,7 @@ export default function UserDashboard() {
         })),
       };
 
-      const res = await fetch(`${API_BASE_URL}/invitations`, {
+      const res = await apiCache.fetch(`${API_BASE_URL}/invitations`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
@@ -1841,7 +1862,7 @@ export default function UserDashboard() {
       setSelectedContributorsForInvite({});
 
       // Refresh invitations list & update cache
-      const invitesRes = await fetch(
+      const invitesRes = await apiCache.fetch(
         `${API_BASE_URL}/invitations/repository/${selectedRepoForInvite.repositoryId}`,
         { headers }
       );
@@ -1935,7 +1956,7 @@ export default function UserDashboard() {
               </div>
               <button
                 className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-                onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+                onClick={() => { apiCache.clear(); try { sessionStorage.removeItem(viewStorageKey); } catch { /* Storage may be unavailable. */ } logout({ logoutParams: { returnTo: window.location.origin } }); }}
                 aria-label="Log out"
               >
                 <LogOut size={14} />
@@ -2360,7 +2381,7 @@ export default function UserDashboard() {
                   onClick={() => {
                     setManageCompany(null);
                     try {
-                      sessionStorage.removeItem("debtlens_active_user_view");
+                      sessionStorage.removeItem(viewStorageKey);
                     } catch { }
                   }}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
@@ -2604,7 +2625,7 @@ export default function UserDashboard() {
 
                               <button
                                 type="button"
-                                onClick={() => handleInspectContributors(manageCompany?.githubOrganizationName || "", repo.name)}
+                                onClick={() => handleInspectContributors(manageCompany?.githubOrganizationName || "", repo.name, manageCompany?.githubInstallationId ?? undefined)}
                                 className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 shrink-0 ${isInspecting
                                     ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
                                     : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted"
@@ -2679,7 +2700,7 @@ export default function UserDashboard() {
                   onClick={() => {
                     setInviteCompany(null);
                     try {
-                      sessionStorage.removeItem("debtlens_active_user_view");
+                      sessionStorage.removeItem(viewStorageKey);
                     } catch { }
                   }}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
