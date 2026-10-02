@@ -337,15 +337,25 @@ export default function UserDashboard() {
     if (typeof dateStr === "number") return dateStr;
     const str = String(dateStr).trim();
     if (!str) return 0;
-    if (str.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(str)) {
-      return new Date(str).getTime();
+    if (str.endsWith("Z") || /[+-]\d{2}(?::?\d{2})?$/.test(str)) {
+      return new Date(str).getTime() || 0;
     }
-    const now = Date.now();
-    const asUtc = new Date(str + "Z").getTime();
-    const asLocal = new Date(str).getTime();
-    const diffUtc = Math.abs(now - asUtc);
-    const diffLocal = Math.abs(now - asLocal);
-    return diffUtc <= diffLocal ? asUtc : asLocal;
+    const normalized = str.includes("T") ? `${str}Z` : `${str.replace(" ", "T")}Z`;
+    const asUtc = new Date(normalized).getTime();
+    if (!Number.isNaN(asUtc)) return asUtc;
+    return new Date(str).getTime() || 0;
+  };
+
+  const formatServerDateTime = (dateStr?: string | number | null): string => {
+    const ts = parseServerDate(dateStr);
+    if (!ts) return "—";
+    return new Date(ts).toLocaleString();
+  };
+
+  const formatServerDate = (dateStr?: string | number | null): string => {
+    const ts = parseServerDate(dateStr);
+    if (!ts) return "—";
+    return new Date(ts).toLocaleDateString();
   };
 
   const saveRecentAnalysisToStorage = (repoId: number, data: any) => {
@@ -3466,7 +3476,7 @@ export default function UserDashboard() {
                             <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                               <span className="inline-flex items-center gap-1">
                                 <Clock size={12} />
-                                {job.startedAt ? new Date(job.startedAt).toLocaleString() : "Date unavailable"}
+                                {job.startedAt ? formatServerDateTime(job.startedAt) : "Date unavailable"}
                               </span>
                               {job.startedByUserName && (
                                 <>
@@ -3610,7 +3620,7 @@ export default function UserDashboard() {
                             </p>
                             <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
                               <Clock size={11} className="text-amber-300" />
-                              Expires {inv?.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : ""}
+                              Expires {inv?.expiresAt ? formatServerDate(inv.expiresAt) : ""}
                             </p>
                           </div>
                         </div>
@@ -3882,7 +3892,7 @@ export default function UserDashboard() {
                         {/* Footer */}
                         <div className="flex flex-col gap-2 pt-3 border-t border-border">
                           <span className="text-[11px] text-muted-foreground truncate">
-                            Created {company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : ""}
+                            Created {company?.createdAt ? formatServerDate(company.createdAt) : ""}
                           </span>
                           <div className="grid grid-cols-2 gap-1.5">
                             <button
@@ -4262,7 +4272,7 @@ export default function UserDashboard() {
                             {/* Footer */}
                             <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
                               <span className="text-xs text-muted-foreground truncate">
-                                Created {company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : ""}
+                                Created {company?.createdAt ? formatServerDate(company.createdAt) : ""}
                               </span>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <button
