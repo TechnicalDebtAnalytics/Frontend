@@ -19,27 +19,27 @@ function renderAuthenticatedDashboard() {
     logout,
     getAccessTokenSilently: vi.fn().mockResolvedValue('test-access-token'),
     user: {
+      sub: 'auth0|test-user',
       name: 'Test User',
       email: 'test@example.com',
     },
   })
 
-  const fetchMock = vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue([]),
-  })
+  const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })))
   vi.stubGlobal('fetch', fetchMock)
 
-  render(<UserDashboard />)
-  return { fetchMock, logout }
+  const view = render(<UserDashboard />)
+  return { fetchMock, logout, unmount: view.unmount }
 }
 
 describe('UserDashboard UI flows', () => {
   beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
     window.history.replaceState({}, '', '/')
   })
 
-  it('UI-07 — rejects an invalid GitHub organization before backend verification', async () => {
+  it('UI-07 � rejects an invalid GitHub organization before backend verification', async () => {
     const user = userEvent.setup()
     const { fetchMock } = renderAuthenticatedDashboard()
 
@@ -59,7 +59,7 @@ describe('UserDashboard UI flows', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
-  it('UI-08 — logs out using the application origin as returnTo', async () => {
+  it('UI-08 � logs out using the application origin as returnTo', async () => {
     const user = userEvent.setup()
     const { logout } = renderAuthenticatedDashboard()
 
@@ -70,4 +70,16 @@ describe('UserDashboard UI flows', () => {
       logoutParams: { returnTo: window.location.origin },
     })
   })
+
+  it('reuses company lists after a refresh while fetching invitations again', async () => {
+    const first = renderAuthenticatedDashboard()
+    await waitFor(() => expect(first.fetchMock).toHaveBeenCalledTimes(4))
+    await waitFor(() => expect(Object.keys(sessionStorage).filter(key => key.startsWith('debtlens:api:'))).toHaveLength(3))
+    first.unmount()
+
+    const refreshed = renderAuthenticatedDashboard()
+    await waitFor(() => expect(refreshed.fetchMock).toHaveBeenCalledTimes(1))
+    expect(refreshed.fetchMock.mock.calls[0][0]).toContain('/invitations/my-pending')
+  })
+
 })
