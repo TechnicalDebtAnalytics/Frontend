@@ -826,54 +826,70 @@ export default function UserDashboard() {
       }
 
       const data = await res.json();
-      // Immediately reset status to QUEUED so old completed state and button disappear
+      const targetJobId = data.analysisId;
+
+      // Immediately set status to QUEUED and stage to CLONING_REPO so the UI smoothly enters Stage 1
+      const initialStatus = {
+        analysisId: targetJobId,
+        status: "QUEUED",
+        stage: "CLONING_REPO",
+        message: "Cloning repository from GitHub, scanning Java classes, and calculating CK complexity metrics.",
+        startedAt: data.startedAt || new Date().toISOString(),
+        totalClasses: 0,
+      };
+
       setAnalysisStatusMap((prev) => ({
         ...prev,
-        [repo.repositoryId]: {
-          analysisId: data.analysisId,
-          status: "QUEUED",
-          startedAt: data.startedAt,
-        },
+        [repo.repositoryId]: initialStatus,
       }));
-
-
 
       // Active polling every 2 seconds for this specific newly started job ID
       let attempts = 0;
-      const targetJobId = data.analysisId;
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          // 1. First attempt to fetch the exact running job by ID without cached stale history
+          // 1. First attempt to fetch the exact running job by ID
           const singleJobRes = await fetch(`${API_BASE_URL}/analysis/${targetJobId}`, { headers });
           let targetJob = null;
           if (singleJobRes.ok) {
             targetJob = await singleJobRes.json();
           } else {
-            // Fallback: fetch repository runs and match by targetJobId
+            // Fallback: fetch repository runs and ONLY match by targetJobId (never fallback to stale history)
             const pollRes = await fetch(`${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`, { headers });
             if (pollRes.ok) {
               const jobs = await pollRes.json();
               if (Array.isArray(jobs)) {
-                targetJob = jobs.find((j: any) => j.analysisId === targetJobId) || jobs[0];
+                targetJob = jobs.find((j: any) => j.analysisId === targetJobId) || null;
               }
             }
           }
 
-          if (targetJob) {
+          if (targetJob && targetJob.analysisId === targetJobId) {
             const isDone = targetJob.status === "COMPLETED" || targetJob.status === "FAILED" || targetJob.status === "CANCELLED";
-            const completedTime = targetJob.completedAt || new Date().toISOString();
-            const completedTimestamp = parseServerDate(completedTime);
+            const isRunning = targetJob.status === "RUNNING" || targetJob.status === "PROCESSING";
+            const completedTime = targetJob.completedAt || (isDone ? new Date().toISOString() : undefined);
+            const completedTimestamp = completedTime ? parseServerDate(completedTime) : undefined;
+            const totalCount = targetJob.totalClassesAnalyzed ?? targetJob.totalClasses ?? 0;
 
             const statusData = {
               analysisId: targetJob.analysisId,
               status: targetJob.status,
-              stage: targetJob.status === "COMPLETED" ? "COMPLETED" : (targetJob.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO"),
-              totalClasses: targetJob.totalClassesAnalyzed ?? targetJob.totalClasses ?? 0,
-              startedAt: targetJob.startedAt,
+              stage: isDone ? targetJob.status : (isRunning ? "ML_PREDICTION" : "CLONING_REPO"),
+              totalClasses: totalCount,
+              startedAt: targetJob.startedAt || initialStatus.startedAt,
               completedAt: completedTime,
               completedTimestamp: completedTimestamp,
-              message: targetJob.status === "COMPLETED" ? "Analysis completed successfully" : (targetJob.status === "CANCELLED" ? "Analysis was cancelled by user." : (targetJob.message || "Analysis in progress...")),
+              message: targetJob.status === "COMPLETED"
+                ? "Analysis completed successfully with prioritized technical debt scores."
+                : (targetJob.status === "CANCELLED"
+                  ? "Analysis was cancelled by user."
+                  : (targetJob.status === "FAILED"
+                    ? (targetJob.message || "Analysis execution failed.")
+                    : (isRunning
+                      ? (totalCount > 0
+                        ? `Static metrics computed for ${totalCount} classes. Running SATD classifiers & Random Forest bug models.`
+                        : "Static metrics computed. Running SATD classifiers & Random Forest bug models.")
+                      : "Cloning repository from GitHub, scanning Java classes, and calculating CK complexity metrics."))),
             };
 
             setAnalysisStatusMap((prev) => ({
@@ -883,20 +899,23 @@ export default function UserDashboard() {
 
             if (isDone) {
               saveRecentAnalysisToStorage(repo.repositoryId, statusData);
+              setAnalyzingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
               clearInterval(pollInterval);
             }
           }
         } catch (e) {
-          if (attempts >= 60) clearInterval(pollInterval);
+          if (attempts >= 120) {
+            clearInterval(pollInterval);
+            setAnalyzingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
+          }
         }
       }, 2000);
     } catch (err: any) {
+      setAnalyzingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
       setInvitationActionMsg({
         type: "error",
         text: err.message || `Failed to start analysis for ${repo.repositoryName}`,
       });
-    } finally {
-      setAnalyzingRepoIds((prev) => ({ ...prev, [repo.repositoryId]: false }));
     }
   };
 
@@ -1083,32 +1102,41 @@ export default function UserDashboard() {
               const completedTime = isDone ? new Date().toISOString() : undefined;
               const completedTimestamp = isDone ? Date.now() : undefined;
 
-              const statusData = {
-                analysisId: jobId,
-                status: status,
-                stage: stage || (status === "RUNNING" ? "ML_PREDICTION" : status === "QUEUED" ? "CLONING_REPO" : status),
-                message: message,
-                totalClasses: totalClasses,
-                completedAt: completedTime,
-                completedTimestamp: completedTimestamp,
-                startedAt: new Date().toISOString(),
-              };
+              setAnalysisStatusMap((prev) => {
+                const existing = prev[repositoryId];
+                // Prevent stale updates from older job IDs from overwriting active job
+                if (existing?.analysisId && jobId && existing.analysisId > jobId) {
+                  return prev;
+                }
 
-              setAnalysisStatusMap((prev) => ({
-                ...prev,
-                [repositoryId]: {
-                  ...prev[repositoryId],
-                  ...statusData,
-                  completedAt: completedTime || prev[repositoryId]?.completedAt,
-                  completedTimestamp: completedTimestamp || prev[repositoryId]?.completedTimestamp,
-                },
-              }));
+                const statusData = {
+                  analysisId: jobId,
+                  status: status,
+                  stage: stage || (status === "RUNNING" ? "ML_PREDICTION" : status === "QUEUED" ? "CLONING_REPO" : status),
+                  message: message,
+                  totalClasses: totalClasses !== undefined ? totalClasses : existing?.totalClasses,
+                  completedAt: completedTime || existing?.completedAt,
+                  completedTimestamp: completedTimestamp || existing?.completedTimestamp,
+                  startedAt: existing?.startedAt || new Date().toISOString(),
+                };
 
-              // 2. Update analyzing spinner state and localStorage cache
+                if (isDone) {
+                  saveRecentAnalysisToStorage(repositoryId, statusData);
+                }
+
+                return {
+                  ...prev,
+                  [repositoryId]: {
+                    ...existing,
+                    ...statusData,
+                  },
+                };
+              });
+
+              // 2. Update analyzing spinner state
               if (isDone) {
-                saveRecentAnalysisToStorage(repositoryId, statusData);
                 setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: false }));
-              } else if (status === "RUNNING" || status === "QUEUED") {
+              } else if (status === "RUNNING" || status === "QUEUED" || status === "PROCESSING") {
                 setAnalyzingRepoIds((prev) => ({ ...prev, [repositoryId]: true }));
               }
             }
