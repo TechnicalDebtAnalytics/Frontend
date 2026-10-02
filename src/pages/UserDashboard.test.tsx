@@ -13,7 +13,7 @@ vi.mock('@auth0/auth0-react', () => ({
   useAuth0: auth0.useAuth0,
 }))
 
-function renderAuthenticatedDashboard(fetchImplementation?: (url: string) => Promise<Response>) {
+function renderAuthenticatedDashboard(fetchImplementation?: (url: string, init?: RequestInit) => Promise<Response>) {
   const logout = vi.fn()
   auth0.useAuth0.mockReturnValue({
     isAuthenticated: true,
@@ -106,6 +106,46 @@ describe('UserDashboard UI flows', () => {
 
     resolveHistory(new Response(JSON.stringify([{ ...completed, status: 'RUNNING', completedAt: null }]), { status: 200 }))
     await waitFor(() => expect(screen.getAllByText(/Running/i).length).toBeGreaterThan(0))
+  })
+
+  it.each([204, 500])('handles repository deletion returning %s without losing failed removals', async (status) => {
+    const user = userEvent.setup()
+    const repo = { repositoryId: 201, githubRepositoryId: 101, repositoryName: 'application-service', repositoryUrl: 'https://github.com/acme/application-service', defaultBranch: 'main' }
+    const company = { companyId: 1, companyName: 'Acme', githubOrganizationName: 'acme', githubOrganizationUrl: 'https://github.com/acme', totalRepositories: 1, repositories: [repo], createdAt: new Date().toISOString() }
+    const available = { githubRepositoryId: 101, name: repo.repositoryName, fullName: 'acme/application-service', htmlUrl: repo.repositoryUrl, defaultBranch: 'main', alreadyAdded: true, language: 'Java' }
+    sessionStorage.setItem('debtlens_active_user_view:auth0|test-user', JSON.stringify({ type: 'manage', company }))
+    const { fetchMock } = renderAuthenticatedDashboard((url, init) => {
+      if (init?.method === 'DELETE') return Promise.resolve(status === 204 ? new Response(null, { status }) : new Response(JSON.stringify({ message: 'Removal failed' }), { status }))
+      const body = url.endsWith('/available-repositories') ? [available] : url.endsWith('/repositories') ? [repo] : []
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
+    })
+    await user.click(await screen.findByRole('button', { name: 'Remove' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm Remove' }))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url.endsWith('/companies/1/repositories/201') && init?.method === 'DELETE')).toBe(true))
+    if (status === 204) await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument())
+    else {
+      expect(await screen.findByText('Removal failed')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    }
+  })
+
+  it('removes a member on a 204 response and refreshes repository invitations', async () => {
+    const user = userEvent.setup()
+    const repo = { repositoryId: 201, githubRepositoryId: 101, repositoryName: 'application-service', repositoryUrl: 'https://github.com/acme/application-service', defaultBranch: 'main' }
+    const company = { companyId: 1, companyName: 'Acme', githubOrganizationName: 'acme', githubOrganizationUrl: 'https://github.com/acme', totalRepositories: 1, repositories: [repo], createdAt: new Date().toISOString() }
+    const member = { memberId: 50, userId: 2, name: 'Alex', githubUsername: 'alex', email: 'alex@example.com', assignedRepositories: [repo] }
+    sessionStorage.setItem('debtlens_active_user_view:auth0|test-user', JSON.stringify({ type: 'invite', company, role: 'admin' }))
+    const { fetchMock } = renderAuthenticatedDashboard((url, init) => {
+      if (init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
+      const body = url.endsWith('/members') ? [member] : url.endsWith('/repositories') ? [repo] : []
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
+    })
+    await user.click(await screen.findByRole('button', { name: /Organization Members/ }))
+    await user.click(await screen.findByRole('button', { name: 'Remove' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm Remove' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument())
+    expect(fetchMock.mock.calls.some(([url, init]) => url.endsWith('/companies/1/members/50') && init?.method === 'DELETE')).toBe(true)
+    expect(await screen.findByText(/Member @alex has been removed/)).toBeInTheDocument()
   })
 
 })
