@@ -805,46 +805,58 @@ export default function UserDashboard() {
 
 
 
-      // Active polling every 2.5 seconds until entire ML pipeline is COMPLETED
+      // Active polling every 2 seconds for this specific newly started job ID
       let attempts = 0;
+      const targetJobId = data.analysisId;
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          const pollRes = await apiCache.fetch(`${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`, { headers });
-          if (pollRes.ok) {
-            const jobs = await pollRes.json();
-            if (Array.isArray(jobs) && jobs.length > 0) {
-              const latest = jobs[0];
-              const isDone = latest.status === "COMPLETED" || latest.status === "FAILED" || latest.status === "CANCELLED";
-              const completedTime = latest.completedAt || new Date().toISOString();
-              const completedTimestamp = parseServerDate(completedTime);
-
-              const statusData = {
-                analysisId: latest.analysisId,
-                status: latest.status,
-                stage: latest.status === "COMPLETED" ? "COMPLETED" : (latest.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO"),
-                totalClasses: latest.totalClassesAnalyzed,
-                startedAt: latest.startedAt,
-                completedAt: completedTime,
-                completedTimestamp: completedTimestamp,
-                message: latest.status === "COMPLETED" ? "Analysis completed successfully" : (latest.status === "CANCELLED" ? "Analysis was cancelled by user." : "Analysis failed"),
-              };
-
-              setAnalysisStatusMap((prev) => ({
-                ...prev,
-                [repo.repositoryId]: statusData,
-              }));
-
-              if (isDone) {
-                saveRecentAnalysisToStorage(repo.repositoryId, statusData);
-                clearInterval(pollInterval);
+          // 1. First attempt to fetch the exact running job by ID without cached stale history
+          const singleJobRes = await fetch(`${API_BASE_URL}/analysis/${targetJobId}`, { headers });
+          let targetJob = null;
+          if (singleJobRes.ok) {
+            targetJob = await singleJobRes.json();
+          } else {
+            // Fallback: fetch repository runs and match by targetJobId
+            const pollRes = await fetch(`${API_BASE_URL}/repositories/${repo.repositoryId}/analysis`, { headers });
+            if (pollRes.ok) {
+              const jobs = await pollRes.json();
+              if (Array.isArray(jobs)) {
+                targetJob = jobs.find((j: any) => j.analysisId === targetJobId) || jobs[0];
               }
             }
           }
+
+          if (targetJob) {
+            const isDone = targetJob.status === "COMPLETED" || targetJob.status === "FAILED" || targetJob.status === "CANCELLED";
+            const completedTime = targetJob.completedAt || new Date().toISOString();
+            const completedTimestamp = parseServerDate(completedTime);
+
+            const statusData = {
+              analysisId: targetJob.analysisId,
+              status: targetJob.status,
+              stage: targetJob.status === "COMPLETED" ? "COMPLETED" : (targetJob.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO"),
+              totalClasses: targetJob.totalClassesAnalyzed ?? targetJob.totalClasses ?? 0,
+              startedAt: targetJob.startedAt,
+              completedAt: completedTime,
+              completedTimestamp: completedTimestamp,
+              message: targetJob.status === "COMPLETED" ? "Analysis completed successfully" : (targetJob.status === "CANCELLED" ? "Analysis was cancelled by user." : (targetJob.message || "Analysis in progress...")),
+            };
+
+            setAnalysisStatusMap((prev) => ({
+              ...prev,
+              [repo.repositoryId]: statusData,
+            }));
+
+            if (isDone) {
+              saveRecentAnalysisToStorage(repo.repositoryId, statusData);
+              clearInterval(pollInterval);
+            }
+          }
         } catch (e) {
-          if (attempts >= 40) clearInterval(pollInterval);
+          if (attempts >= 60) clearInterval(pollInterval);
         }
-      }, 2500);
+      }, 2000);
     } catch (err: any) {
       setInvitationActionMsg({
         type: "error",
