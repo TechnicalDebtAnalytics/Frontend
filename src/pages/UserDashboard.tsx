@@ -4334,18 +4334,22 @@ export default function UserDashboard() {
                       >
                         <div>
                           {/* Card Top */}
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
+                          <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm" style={{ background: "#196bdf" }}>
                                 {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
                               </div>
-                              <div>
-                                <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-foreground text-sm leading-snug truncate" title={company?.companyName || "Organization"}>
+                                  {company?.companyName || "Organization"}
+                                </h3>
+                                <div className="flex items-center gap-1.5 mt-0.5 min-w-0 flex-wrap">
+                                  <span className="text-xs text-muted-foreground truncate max-w-[130px] sm:max-w-[160px]" title={`@${company?.githubOrganizationName || "organization"}`}>
+                                    @{company?.githubOrganizationName || "organization"}
+                                  </span>
                                   {company?.githubInstallationId ? (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
-                                      <Check size={9} /> App
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                      <Check size={9} /> App Connected
                                     </span>
                                   ) : installationIdFromUrl ? (
                                     <button
@@ -4355,17 +4359,29 @@ export default function UserDashboard() {
                                         handleLinkInstallation(company.companyId, installationIdFromUrl);
                                       }}
                                       disabled={linkingInstallation}
-                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors shrink-0"
                                       title="Click to link newly installed GitHub App"
                                     >
                                       {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
                                       Link App
                                     </button>
-                                  ) : null}
+                                  ) : (
+                                    <a
+                                      href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm shrink-0"
+                                      title="Connect GitHub App to this organization for dedicated rate limits"
+                                    >
+                                      <Sparkles size={10} className="text-indigo-400" />
+                                      <span>Connect App</span>
+                                    </a>
+                                  )}
                                 </div>
                               </div>
                             </div>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ml-1" style={{ background: "#182e46", color: "#65d8f5" }}>
                               <Crown size={10} />
                               Super Admin
                             </span>
@@ -4542,50 +4558,54 @@ export default function UserDashboard() {
                         className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25 flex flex-col justify-between"
                       >
                         <div>
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
+                          <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm" style={{ background: "#137756" }}>
                                 {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
                               </div>
-                                                              <div>
-                                  <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                    <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
-                                    {company?.githubInstallationId ? (
-                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
-                                        <Check size={9} /> App Connected
-                                      </span>
-                                    ) : installationIdFromUrl ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleLinkInstallation(company.companyId, installationIdFromUrl);
-                                        }}
-                                        disabled={linkingInstallation}
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
-                                        title="Click to link newly installed GitHub App"
-                                      >
-                                        {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
-                                        Link App
-                                      </button>
-                                    ) : (
-                                      <a
-                                        href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
-                                        title="Connect GitHub App to this organization for dedicated rate limits"
-                                      >
-                                        <Sparkles size={10} className="text-indigo-400" />
-                                        <span>Connect App</span>
-                                      </a>
-                                    )}
-                                  </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-foreground text-sm leading-snug truncate" title={company?.companyName || "Organization"}>
+                                  {company?.companyName || "Organization"}
+                                </h3>
+                                <div className="flex items-center gap-1.5 mt-0.5 min-w-0 flex-wrap">
+                                  <span className="text-xs text-muted-foreground truncate max-w-[130px] sm:max-w-[160px]" title={`@${company?.githubOrganizationName || "organization"}`}>
+                                    @{company?.githubOrganizationName || "organization"}
+                                  </span>
+                                  {company?.githubInstallationId ? (
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                      <Check size={9} /> App Connected
+                                    </span>
+                                  ) : installationIdFromUrl ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                      }}
+                                      disabled={linkingInstallation}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors shrink-0"
+                                      title="Click to link newly installed GitHub App"
+                                    >
+                                      {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                      Link App
+                                    </button>
+                                  ) : (
+                                    <a
+                                      href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm shrink-0"
+                                      title="Connect GitHub App to this organization for dedicated rate limits"
+                                    >
+                                      <Sparkles size={10} className="text-indigo-400" />
+                                      <span>Connect App</span>
+                                    </a>
+                                  )}
                                 </div>
+                              </div>
                             </div>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ml-1" style={{ background: "#12382e", color: "#7de3b2" }}>
                               <UserCheck size={10} />
                               Member
                             </span>
@@ -4696,92 +4716,98 @@ export default function UserDashboard() {
                             key={company.companyId}
                             onMouseEnter={() => setHoveredCard(company.companyId)}
                             onMouseLeave={() => setHoveredCard(null)}
-                            className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200"
+                            className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 flex flex-col justify-between h-full"
                             style={{
                               boxShadow: hoveredCard === company.companyId ? "0 8px 30px rgba(67,97,238,0.12)" : "0 1px 4px rgba(0,0,0,0.06)",
                               transform: hoveredCard === company.companyId ? "translateY(-2px)" : "translateY(0)",
                             }}
                           >
-                            {/* Card Top */}
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#196bdf" }}>
-                                  {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
-                                </div>
-                                                                <div>
-                                  <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                    <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
-                                    {company?.githubInstallationId ? (
-                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
-                                        <Check size={9} /> App Connected
+                            <div>
+                              {/* Card Top */}
+                              <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm" style={{ background: "#196bdf" }}>
+                                    {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h3 className="font-semibold text-foreground text-sm leading-snug truncate" title={company?.companyName || "Organization"}>
+                                      {company?.companyName || "Organization"}
+                                    </h3>
+                                    <div className="flex items-center gap-1.5 mt-0.5 min-w-0 flex-wrap">
+                                      <span className="text-xs text-muted-foreground truncate max-w-[130px] sm:max-w-[160px]" title={`@${company?.githubOrganizationName || "organization"}`}>
+                                        @{company?.githubOrganizationName || "organization"}
                                       </span>
-                                    ) : installationIdFromUrl ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleLinkInstallation(company.companyId, installationIdFromUrl);
-                                        }}
-                                        disabled={linkingInstallation}
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
-                                        title="Click to link newly installed GitHub App"
-                                      >
-                                        {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
-                                        Link App
-                                      </button>
-                                    ) : (
-                                      <a
-                                        href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
-                                        title="Connect GitHub App to this organization for dedicated rate limits"
-                                      >
-                                        <Sparkles size={10} className="text-indigo-400" />
-                                        <span>Connect App</span>
-                                      </a>
-                                    )}
+                                      {company?.githubInstallationId ? (
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                          <Check size={9} /> App Connected
+                                        </span>
+                                      ) : installationIdFromUrl ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                          }}
+                                          disabled={linkingInstallation}
+                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors shrink-0"
+                                          title="Click to link newly installed GitHub App"
+                                        >
+                                          {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                          Link App
+                                        </button>
+                                      ) : (
+                                        <a
+                                          href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm shrink-0"
+                                          title="Connect GitHub App to this organization for dedicated rate limits"
+                                        >
+                                          <Sparkles size={10} className="text-indigo-400" />
+                                          <span>Connect App</span>
+                                        </a>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ml-1" style={{ background: "#182e46", color: "#65d8f5" }}>
+                                  <Crown size={10} />
+                                  Super Admin
+                                </span>
                               </div>
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#182e46", color: "#65d8f5" }}>
-                                <Crown size={10} />
-                                Super Admin
-                              </span>
-                            </div>
 
-                            {/* Repos count & link */}
-                            <div className="bg-muted rounded-xl p-3 mb-4 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <GitBranch size={14} style={{ color: "#65d8f5" }} />
-                                <span className="text-xs font-semibold text-foreground">{company?.totalRepositories || 0} Repositories</span>
+                              {/* Repos count & link */}
+                              <div className="bg-muted rounded-xl p-3 mb-4 flex items-center justify-between min-w-0 gap-2">
+                                <div className="flex items-center gap-2 min-w-0 truncate">
+                                  <GitBranch size={14} className="shrink-0" style={{ color: "#65d8f5" }} />
+                                  <span className="text-xs font-semibold text-foreground truncate">{company?.totalRepositories || 0} Repositories</span>
+                                </div>
+                                <a
+                                  href={company?.githubOrganizationUrl || "#"}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] font-medium hover:underline flex items-center gap-1 shrink-0 ml-2"
+                                  style={{ color: "#65d8f5" }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  GitHub Org <ExternalLink size={10} />
+                                </a>
                               </div>
-                              <a
-                                href={company?.githubOrganizationUrl || "#"}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[11px] font-medium hover:underline flex items-center gap-1"
-                                style={{ color: "#65d8f5" }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                GitHub Org <ExternalLink size={10} />
-                              </a>
                             </div>
 
                             {/* Footer */}
-                            <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
-                              <span className="text-xs text-muted-foreground truncate">
+                            <div className="flex flex-col gap-2 pt-3 border-t border-border mt-auto">
+                              <span className="text-[11px] text-muted-foreground truncate">
                                 Created {company?.createdAt ? formatServerDate(company.createdAt) : ""}
                               </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
+                              <div className="grid grid-cols-2 gap-1.5">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     openAnalysisPage(company, "admin");
                                   }}
-                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 transition-colors shadow-sm"
+                                  className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 transition-colors shadow-sm"
                                   title="Open full page analysis workspace"
                                 >
                                   <Play size={10} className="fill-current" /> Analyze
@@ -4791,17 +4817,17 @@ export default function UserDashboard() {
                                     e.stopPropagation();
                                     openPastAnalysesPage(company, "admin");
                                   }}
-                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
+                                  className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors shadow-sm"
                                   title="View past analysis history & reports"
                                 >
-                                  <History size={11} /> Past Analyses
+                                  <History size={11} /> History
                                 </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     openInviteModal(company);
                                   }}
-                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
+                                  className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition-colors shadow-sm"
                                   title="Invite repository contributors"
                                 >
                                   <UserPlus size={12} /> Invite
@@ -4811,7 +4837,7 @@ export default function UserDashboard() {
                                     e.stopPropagation();
                                     openManageModal(company);
                                   }}
-                                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
+                                  className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-muted hover:bg-border text-foreground transition-colors"
                                   title="Add more repos to company"
                                 >
                                   <Layers size={12} /> Repos
@@ -4873,62 +4899,68 @@ export default function UserDashboard() {
                           <div
                             key={company.companyId}
                             onClick={() => openAnalysisPage(company, "member")}
-                            className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25"
+                            className="dl-company-card bg-card rounded-2xl border border-border p-6 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-400/25 flex flex-col justify-between h-full"
                           >
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: "#137756" }}>
-                                  {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
-                                </div>
-                                                                <div>
-                                  <h3 className="font-semibold text-foreground text-sm leading-tight">{company?.companyName || "Organization"}</h3>
-                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                    <span className="text-xs text-muted-foreground">@{company?.githubOrganizationName || "organization"}</span>
-                                    {company?.githubInstallationId ? (
-                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
-                                        <Check size={9} /> App Connected
+                            <div>
+                              <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm" style={{ background: "#137756" }}>
+                                    {(company?.companyName || "CO").slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h3 className="font-semibold text-foreground text-sm leading-snug truncate" title={company?.companyName || "Organization"}>
+                                      {company?.companyName || "Organization"}
+                                    </h3>
+                                    <div className="flex items-center gap-1.5 mt-0.5 min-w-0 flex-wrap">
+                                      <span className="text-xs text-muted-foreground truncate max-w-[130px] sm:max-w-[160px]" title={`@${company?.githubOrganizationName || "organization"}`}>
+                                        @{company?.githubOrganizationName || "organization"}
                                       </span>
-                                    ) : installationIdFromUrl ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleLinkInstallation(company.companyId, installationIdFromUrl);
-                                        }}
-                                        disabled={linkingInstallation}
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors"
-                                        title="Click to link newly installed GitHub App"
-                                      >
-                                        {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
-                                        Link App
-                                      </button>
-                                    ) : (
-                                      <a
-                                        href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
-                                        title="Connect GitHub App to this organization for dedicated rate limits"
-                                      >
-                                        <Sparkles size={10} className="text-indigo-400" />
-                                        <span>Connect App</span>
-                                      </a>
-                                    )}
+                                      {company?.githubInstallationId ? (
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0" title={`GitHub App Installation ID: ${company.githubInstallationId}`}>
+                                          <Check size={9} /> App Connected
+                                        </span>
+                                      ) : installationIdFromUrl ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleLinkInstallation(company.companyId, installationIdFromUrl);
+                                          }}
+                                          disabled={linkingInstallation}
+                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 hover:bg-indigo-500/30 transition-colors shrink-0"
+                                          title="Click to link newly installed GitHub App"
+                                        >
+                                          {linkingInstallation ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                          Link App
+                                        </button>
+                                      ) : (
+                                        <a
+                                          href={appInfo?.installUrl || `https://github.com/apps/${appInfo?.appSlug || 'debtlens'}/installations/new`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm shrink-0"
+                                          title="Connect GitHub App to this organization for dedicated rate limits"
+                                        >
+                                          <Sparkles size={10} className="text-indigo-400" />
+                                          <span>Connect App</span>
+                                        </a>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ml-1" style={{ background: "#12382e", color: "#7de3b2" }}>
+                                  <UserCheck size={10} />
+                                  Member
+                                </span>
                               </div>
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#12382e", color: "#7de3b2" }}>
-                                <UserCheck size={10} />
-                                Member
-                              </span>
                             </div>
 
-                            <div className="flex items-center justify-between pt-3 border-t border-border">
-                              <span className="text-xs font-semibold text-emerald-300">
+                            <div className="flex items-center justify-between pt-3 border-t border-border mt-auto gap-2">
+                              <span className="text-xs font-semibold text-emerald-300 truncate">
                                 {company?.totalRepositories || 0} Assigned Repo{(company?.totalRepositories || 0) !== 1 ? "s" : ""}
                               </span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
