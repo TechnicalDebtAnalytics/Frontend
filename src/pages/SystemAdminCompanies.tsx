@@ -33,7 +33,7 @@ export default function SystemAdminCompanies() {
 
     try {
       const response = await api<PagedResponse<AdminCompany>>(
-        `/admin/companies${queryString({
+        `/admin/companies?${queryString({
           q: q || undefined,
           page,
           size: 20,
@@ -80,42 +80,58 @@ export default function SystemAdminCompanies() {
   }
 
   return (
-    <section className="companies-page">
-      <div className="companies-summary">
+    <section className="dashboard-content companies-content">
+      <div className="page-heading">
         <div>
           <h1>Companies</h1>
-          <p className="companies-summary-label">Companies</p>
-          <strong>{companies?.totalElements ?? 0}</strong>
+          <p>Inspect registered companies and their platform usage.</p>
         </div>
 
-        <form
-          className="companies-search"
-          onSubmit={submitSearch}
-          role="search"
-        >
-          <Search size={18} aria-hidden="true" />
-          <input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Search companies"
-            aria-label="Search companies"
-          />
-        </form>
+        <div className="companies-count">
+          <span className="count-badge">
+            {companies?.totalElements ?? 0}
+          </span>
+          Total Companies
+        </div>
       </div>
 
-      <div className="companies-table-card">
+      <form
+        className="admin-filter-bar"
+        onSubmit={submitSearch}
+        role="search"
+      >
+        <Search size={18} aria-hidden="true" />
+        <input
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="Search companies"
+          aria-label="Search companies"
+        />
+        <button type="submit">Search</button>
+      </form>
+
+      <div className="dashboard-card">
         {loading ? (
-          <div className="admin-page-state">Loading companies…</div>
+          <div className="companies-loading" role="status">
+            <div className="loading-spinner" />
+            <p>Loading companies…</p>
+          </div>
         ) : error ? (
-          <div className="admin-page-state admin-page-state-error">
+          <div className="companies-error" role="alert">
+            <h3>Failed to Load Companies</h3>
             <p>{error}</p>
-            <button type="button" onClick={() => void loadCompanies()}>
+            <button
+              type="button"
+              className="retry-button"
+              onClick={() => void loadCompanies()}
+            >
               Retry
             </button>
           </div>
         ) : !companies || companies.content.length === 0 ? (
-          <div className="admin-page-state">
-            <Building2 size={28} aria-hidden="true" />
+          <div className="companies-empty">
+            <Building2 size={32} aria-hidden="true" />
+            <h3>No Companies Found</h3>
             <p>No companies match the current filters.</p>
           </div>
         ) : (
@@ -135,6 +151,7 @@ export default function SystemAdminCompanies() {
                 <tbody>
                   {companies.content.map((company) => (
                     <tr
+                      className="clickable-row"
                       key={company.companyId}
                       tabIndex={0}
                       onClick={() =>
@@ -150,27 +167,43 @@ export default function SystemAdminCompanies() {
                     >
                       <td>
                         <div className="company-name-cell">
-                          <span className="company-icon">
-                            <Building2 size={18} aria-hidden="true" />
-                          </span>
+                          <div className="company-avatar">
+                            {company.companyName[0]?.toUpperCase() ?? 'C'}
+                          </div>
 
-                          <div>
+                          <div className="owner-cell">
                             <strong>{company.companyName}</strong>
-                            <span>
+                            <small>
                               {company.githubOrganizationUrl || '—'}
-                            </span>
+                            </small>
                           </div>
                         </div>
                       </td>
 
                       <td>
-                        <strong>{company.superAdminName || '—'}</strong>
-                        <span>{company.superAdminEmail || '—'}</span>
+                        <div className="owner-cell">
+                          <strong>{company.superAdminName || '—'}</strong>
+                          <small>{company.superAdminEmail || '—'}</small>
+                        </div>
                       </td>
 
-                      <td>{company.totalRepositories}</td>
-                      <td>{company.totalUsers}</td>
-                      <td>{formatDate(company.createdAt)}</td>
+                      <td>
+                        <span className="count-pill">
+                          {company.totalRepositories}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="count-pill">
+                          {company.totalUsers}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="date-text">
+                          {formatDate(company.createdAt)}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
