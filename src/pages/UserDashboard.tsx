@@ -302,16 +302,12 @@ export default function UserDashboard() {
   // ── In-Memory Fast Caches for Instant 0ms Navigation / Repo Switching ──
   const repoContributorsCacheRef = useRef<Record<number, { contributors: RepoContributor[]; invitations: InvitationResponse[]; timestamp: number }>>({});
   const companyReposCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; timestamp: number }>>({});
-  const companyPastAnalysesCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; analysisList: PastAnalysisJob[]; timestamp: number }>>({});
-  const companyAnalysisWorkspaceCacheRef = useRef<Record<number, { repos: CompanyRepoItem[]; statusMap: Record<number, any>; timestamp: number }>>({});
   const reportsCacheRef = useRef<Record<number, TechnicalDebtReport>>({});
 
   useEffect(() => {
     // Discard the previous account's rendered data as well as component caches.
     repoContributorsCacheRef.current = {};
     companyReposCacheRef.current = {};
-    companyPastAnalysesCacheRef.current = {};
-    companyAnalysisWorkspaceCacheRef.current = {};
     reportsCacheRef.current = {};
     setAdminCompaniesList(apiCache.read<CompanyAdminItem[]>(`${API_BASE_URL}/companies/my-admin`) ?? []);
     setMemberCompaniesList(apiCache.read<CompanyAdminItem[]>(`${API_BASE_URL}/companies/my-member`) ?? []);
@@ -588,6 +584,38 @@ export default function UserDashboard() {
     }
   };
 
+  // Hydrate a refresh snapshot, then replace it with the latest server history.
+  const analysisStatusFromHistory = (repos: CompanyRepoItem[], jobs: PastAnalysisJob[]) => {
+    const statuses: typeof analysisStatusMap = {};
+    for (const repo of repos) {
+      const saved = getRecentAnalysisFromStorage(repo.repositoryId);
+      if (saved) statuses[repo.repositoryId] = saved;
+    }
+    const seen = new Set<number>();
+    for (const job of [...jobs].sort((a, b) => b.analysisId - a.analysisId)) {
+      if (!job.repositoryId || seen.has(job.repositoryId)) continue;
+      seen.add(job.repositoryId);
+      delete statuses[job.repositoryId];
+      const running = ['QUEUED', 'RUNNING', 'PROCESSING'].includes(job.status);
+      const terminal = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(job.status);
+      const completedTimestamp = parseServerDate(job.completedAt);
+      const elapsed = Date.now() - completedTimestamp;
+      if (!running && !(terminal && completedTimestamp && elapsed >= 0 && elapsed < TEN_MINUTES_MS)) continue;
+      statuses[job.repositoryId] = {
+        analysisId: job.analysisId,
+        status: job.status,
+        stage: running ? (job.status === 'RUNNING' ? 'ML_PREDICTION' : 'CLONING_REPO') : job.status,
+        totalClasses: job.totalClassesAnalyzed || job.totalClasses,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt || undefined,
+        completedTimestamp: terminal ? completedTimestamp : undefined,
+        message: terminal ? (job.status === 'COMPLETED' ? 'Analysis completed successfully' : job.status === 'CANCELLED' ? 'Analysis was cancelled by user.' : 'Analysis failed') : undefined,
+      };
+      if (terminal) saveRecentAnalysisToStorage(job.repositoryId, statuses[job.repositoryId]);
+    }
+    return statuses;
+  };
+
   // Open Full Page Analysis Workspace (loads recent analyses completed within 10 minutes or currently running)
   const openAnalysisPage = async (company: CompanyAdminItem, role: "admin" | "member") => {
     setAnalysisPageCompany(company);
@@ -599,15 +627,15 @@ export default function UserDashboard() {
       sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "analysis", company, role }));
     } catch { }
 
-    // 0ms Instant Loading from Fast In-Memory Cache if available
-    const cachedWorkspace = companyAnalysisWorkspaceCacheRef.current[company.companyId];
-    if (cachedWorkspace && cachedWorkspace.repos.length > 0) {
-      setActiveCompanyRepos(cachedWorkspace.repos);
-      setAnalysisStatusMap(cachedWorkspace.statusMap);
-      setLoadingActiveCompanyRepos(false);
-    } else {
-      setLoadingActiveCompanyRepos(true);
-    }
+    const reposUrl = `${API_BASE_URL}/companies/${company.companyId}/repositories`;
+    const historyUrl = `${API_BASE_URL}/companies/${company.companyId}/analysis`;
+    const savedRepos = apiCache.read<CompanyRepoItem[]>(reposUrl);
+    const savedHistory = apiCache.read<PastAnalysisJob[]>(historyUrl);
+    const snapshotRepos = savedRepos ?? company.repositories ?? [];
+    const cachedWorkspace = savedRepos !== null || company.repositories !== undefined;
+    setActiveCompanyRepos(snapshotRepos);
+    setAnalysisStatusMap(analysisStatusFromHistory(snapshotRepos, savedHistory ?? []));
+    setLoadingActiveCompanyRepos(!cachedWorkspace);
 
     try {
       let token = "";
@@ -623,6 +651,12 @@ export default function UserDashboard() {
         apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
       ]);
 
+      if ([reposRes.status, analysisRes.status].some(status => status === 401 || status === 403)) {
+        setActiveCompanyRepos([]);
+        setAnalysisStatusMap({});
+        return;
+      }
+
       let reposList: CompanyRepoItem[] = [];
       if (reposRes.ok) {
         const data: CompanyRepoItem[] = await reposRes.json();
@@ -632,77 +666,8 @@ export default function UserDashboard() {
         setActiveCompanyRepos([]);
       }
 
-      const initialStatusMap: Record<number, {
-        analysisId?: number;
-        status?: string;
-        stage?: string;
-        message?: string;
-        totalClasses?: number;
-        completedAt?: string;
-        completedTimestamp?: number;
-        startedAt?: string;
-      }> = { ...(cachedWorkspace ? cachedWorkspace.statusMap : {}) };
-
-      // 1. First populate from localStorage cache (if within 10 minutes)
-      for (const repo of reposList) {
-        const saved = getRecentAnalysisFromStorage(repo.repositoryId);
-        if (saved) {
-          initialStatusMap[repo.repositoryId] = saved;
-        }
-      }
-
-      // 2. Cross-reference with API analysis history
-      if (analysisRes.ok) {
-        const analysisData: PastAnalysisJob[] = await analysisRes.json();
-        if (Array.isArray(analysisData)) {
-          // Sort descending by analysisId to get most recent first
-          const sortedJobs = [...analysisData].sort((a, b) => b.analysisId - a.analysisId);
-          for (const job of sortedJobs) {
-            if (job.repositoryId && !initialStatusMap[job.repositoryId]) {
-              const isRunningOrQueued = job.status === "QUEUED" || job.status === "RUNNING" || job.status === "PROCESSING";
-              const isComp = job.status === "COMPLETED";
-              const isFail = job.status === "FAILED";
-              const isCanc = job.status === "CANCELLED";
-
-              if (isRunningOrQueued) {
-                initialStatusMap[job.repositoryId] = {
-                  analysisId: job.analysisId,
-                  status: job.status,
-                  stage: job.status === "RUNNING" ? "ML_PREDICTION" : "CLONING_REPO",
-                  totalClasses: job.totalClassesAnalyzed || job.totalClasses,
-                  startedAt: job.startedAt,
-                  completedAt: job.completedAt || undefined,
-                };
-              } else if ((isComp || isFail || isCanc) && job.completedAt) {
-                const jobTimeMs = parseServerDate(job.completedAt);
-                const elapsed = Date.now() - jobTimeMs;
-                if (elapsed >= 0 && elapsed < TEN_MINUTES_MS) {
-                  const jobData = {
-                    analysisId: job.analysisId,
-                    status: job.status,
-                    stage: job.status,
-                    totalClasses: job.totalClassesAnalyzed || job.totalClasses,
-                    startedAt: job.startedAt,
-                    completedAt: job.completedAt,
-                    completedTimestamp: jobTimeMs,
-                    message: isComp ? "Analysis completed successfully" : (isCanc ? "Analysis was cancelled by user." : "Analysis failed"),
-                  };
-                  initialStatusMap[job.repositoryId] = jobData;
-                  saveRecentAnalysisToStorage(job.repositoryId, jobData);
-                }
-              }
-            }
-          }
-        }
-      }
-      setAnalysisStatusMap(initialStatusMap);
-
-      // Save to fast in-memory cache
-      companyAnalysisWorkspaceCacheRef.current[company.companyId] = {
-        repos: reposList,
-        statusMap: initialStatusMap,
-        timestamp: Date.now(),
-      };
+      const history: PastAnalysisJob[] = analysisRes.ok ? await analysisRes.json() : savedHistory ?? [];
+      setAnalysisStatusMap(analysisStatusFromHistory(reposList, Array.isArray(history) ? history : []));
     } catch (err) {
       console.warn("Could not fetch company repositories or analysis for workspace:", err);
       if (!cachedWorkspace) {
@@ -735,17 +700,12 @@ export default function UserDashboard() {
       sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "pastAnalyses", company, role, initialRepoId }));
     } catch { }
 
-    // 0ms Instant Loading from Fast In-Memory Cache if available
-    const cached = companyPastAnalysesCacheRef.current[company.companyId];
-    if (cached) {
-      setPastAnalysesRepos(cached.repos);
-      setPastAnalysesList(cached.analysisList);
-      setLoadingPastAnalyses(false);
-    } else {
-      setLoadingPastAnalyses(true);
-      setPastAnalysesRepos([]);
-      setPastAnalysesList([]);
-    }
+    const savedRepos = apiCache.read<CompanyRepoItem[]>(`${API_BASE_URL}/companies/${company.companyId}/repositories`);
+    const savedHistory = apiCache.read<PastAnalysisJob[]>(`${API_BASE_URL}/companies/${company.companyId}/analysis`);
+    const cached = savedHistory !== null;
+    setPastAnalysesRepos(savedRepos ?? company.repositories ?? []);
+    setPastAnalysesList(savedHistory ?? []);
+    setLoadingPastAnalyses(!cached);
 
     try {
       let token = "";
@@ -760,6 +720,13 @@ export default function UserDashboard() {
         apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
         apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/analysis`, { headers }),
       ]);
+
+      if ([reposRes.status, analysisRes.status].some(status => status === 401 || status === 403)) {
+        setPastAnalysesRepos([]);
+        setPastAnalysesList([]);
+        setPastAnalysesError('Your access to this company has changed.');
+        return;
+      }
 
       let reposData: CompanyRepoItem[] = [];
       if (reposRes.ok) {
@@ -779,12 +746,6 @@ export default function UserDashboard() {
         setPastAnalysesList([]);
       }
 
-      // Update in-memory cache
-      companyPastAnalysesCacheRef.current[company.companyId] = {
-        repos: reposData,
-        analysisList: analysisData,
-        timestamp: Date.now(),
-      };
     } catch (err: any) {
       console.error("Failed to load past analyses:", err);
       if (!cached) {

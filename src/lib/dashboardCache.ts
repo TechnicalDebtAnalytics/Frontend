@@ -1,10 +1,12 @@
 // Cache only slow-changing dashboard reads. Invitations, authorization checks,
 // reports, and live analysis/polling responses always go to the server.
+// Company analysis history keeps a refresh snapshot, but revalidates every request.
 const MAX_ENTRIES = 100;
 const MAX_BODY_LENGTH = 250_000;
 interface Entry { body: string; expiresAt: number; }
 
 export function dashboardCacheTtl(path: string): number {
+  if (/^\/companies\/\d+\/analysis$/.test(path)) return 300_000;
   if (path === '/github/app/info') return 30_000;
   if (/^\/companies\/my-(admin|member)$/.test(path)) return 30_000;
   if (/^\/companies\/\d+\/repositories$/.test(path)) return 60_000;
@@ -95,7 +97,8 @@ export function createDashboardCache(
         return res;
       }
       const saved = readEntry(url);
-      if (saved) return response(saved);
+      const revalidate = /^\/companies\/\d+\/analysis$/.test(path ?? '');
+      if (saved && !revalidate) return response(saved);
       const existing = pending.get(url);
       if (existing) return (await existing).clone();
       const startedGeneration = generation;
