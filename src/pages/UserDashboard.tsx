@@ -38,6 +38,9 @@ import {
   Minimize2,
   Radio,
   StopCircle,
+  Trash2,
+  UserMinus,
+  Ban,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 import { createDashboardCache } from "../lib/dashboardCache";
@@ -156,6 +159,16 @@ interface InvitationResponse {
   createdAt: string;
 }
 
+interface CompanyMember {
+  memberId: number;
+  userId: number | null;
+  email: string | null;
+  githubUsername: string | null;
+  name: string | null;
+  joinedAt: string;
+  assignedRepositories: CompanyRepoItem[];
+}
+
 interface PastAnalysisJob {
   analysisId: number;
   repositoryId: number;
@@ -240,9 +253,19 @@ export default function UserDashboard() {
   const [addingRepos, setAddingRepos] = useState(false);
   const [addReposError, setAddReposError] = useState("");
   const [addReposSuccess, setAddReposSuccess] = useState(false);
+  const [companyImportedRepos, setCompanyImportedRepos] = useState<CompanyRepoItem[]>([]);
+  const [deletingRepoId, setDeletingRepoId] = useState<number | null>(null);
+  const [confirmDeleteRepo, setConfirmDeleteRepo] = useState<{ id: number; name: string } | null>(null);
 
-  // ── Invite Contributors Modal State ──
+  // ── Invite Contributors & Team Members Modal State ──
   const [inviteCompany, setInviteCompany] = useState<CompanyAdminItem | null>(null);
+  const [teamWorkspaceTab, setTeamWorkspaceTab] = useState<"invite" | "members">("invite");
+  const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
+  const [loadingCompanyMembers, setLoadingCompanyMembers] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState<CompanyMember | null>(null);
+  const [revokingInvitationId, setRevokingInvitationId] = useState<number | null>(null);
   const [companyRepos, setCompanyRepos] = useState<CompanyRepoItem[]>([]);
   const [selectedRepoForInvite, setSelectedRepoForInvite] = useState<CompanyRepoItem | null>(null);
   const [loadingCompanyReposForInvite, setLoadingCompanyReposForInvite] = useState(false);
@@ -1481,6 +1504,7 @@ export default function UserDashboard() {
     setAddReposError("");
     setAddReposSuccess(false);
     setActiveRepoForContributors(null);
+    setConfirmDeleteRepo(null);
     setLoadingCompanyRepos(true);
 
     try {
@@ -1492,15 +1516,66 @@ export default function UserDashboard() {
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/available-repositories`, { headers });
-      if (res.ok) {
-        const data: CompanyAvailableRepo[] = await res.json();
+      const [availRes, reposRes] = await Promise.all([
+        apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/available-repositories`, { headers }),
+        apiCache.fetch(`${API_BASE_URL}/companies/${company.companyId}/repositories`, { headers }),
+      ]);
+
+      if (availRes.ok) {
+        const data: CompanyAvailableRepo[] = await availRes.json();
         setAvailableForCompany(data);
       }
+      if (reposRes.ok) {
+        const reposData: CompanyRepoItem[] = await reposRes.json();
+        setCompanyImportedRepos(Array.isArray(reposData) ? reposData : []);
+      }
     } catch (err) {
-      console.error("Failed to load company available repos:", err);
+      console.error("Failed to load company repos:", err);
     } finally {
       setLoadingCompanyRepos(false);
+    }
+  };
+
+  const handleRemoveRepository = async (repoId: number, repoName: string) => {
+    if (!manageCompany) return;
+    setDeletingRepoId(repoId);
+    setAddReposError("");
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${manageCompany.companyId}/repositories/${repoId}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to remove repository ${repoName}`);
+      }
+
+      // Invalidate caches & update local state
+      apiCache.clear();
+      setAvailableForCompany((prev) =>
+        prev.map((r) => {
+          const matched = companyImportedRepos.find((ir) => ir.repositoryId === repoId);
+          if (matched && (String(r.githubRepositoryId) === String(matched.githubRepositoryId) || r.name === repoName)) {
+            return { ...r, alreadyAdded: false };
+          }
+          return r;
+        })
+      );
+      setCompanyImportedRepos((prev) => prev.filter((r) => r.repositoryId !== repoId));
+      setConfirmDeleteRepo(null);
+      await fetchAdminCompanies();
+    } catch (err: any) {
+      setAddReposError(err.message || "Failed to remove repository");
+    } finally {
+      setDeletingRepoId(null);
     }
   };
 
@@ -1610,19 +1685,120 @@ export default function UserDashboard() {
     }
   };
 
+  const fetchCompanyMembers = async (companyId: number) => {
+    setLoadingCompanyMembers(true);
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${companyId}/members`, { headers });
+      if (res.ok) {
+        const data: CompanyMember[] = await res.json();
+        setCompanyMembers(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Failed to load company members:", err);
+    } finally {
+      setLoadingCompanyMembers(false);
+    }
+  };
+
+  const handleRevokeInvitation = async (invitationId: number) => {
+    setRevokingInvitationId(invitationId);
+    setInviteError("");
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await apiCache.fetch(`${API_BASE_URL}/invitations/${invitationId}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to revoke invitation");
+      }
+
+      setExistingInvitations((prev) => prev.filter((i) => i.invitationId !== invitationId));
+      if (selectedRepoForInvite) {
+        const currentCached = repoContributorsCacheRef.current[selectedRepoForInvite.repositoryId];
+        if (currentCached) {
+          repoContributorsCacheRef.current[selectedRepoForInvite.repositoryId] = {
+            ...currentCached,
+            invitations: currentCached.invitations.filter((i) => i.invitationId !== invitationId),
+          };
+        }
+      }
+      setInviteSuccess("Invitation revoked successfully.");
+      setTimeout(() => setInviteSuccess(null), 3000);
+    } catch (err: any) {
+      setInviteError(err.message || "Failed to revoke invitation");
+    } finally {
+      setRevokingInvitationId(null);
+    }
+  };
+
+  const handleRemoveMember = async (memberId: number, memberName: string) => {
+    if (!inviteCompany) return;
+    setRemovingMemberId(memberId);
+    setInviteError("");
+    try {
+      let token = "";
+      try {
+        token = await getAccessTokenSilently();
+      } catch { }
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await apiCache.fetch(`${API_BASE_URL}/companies/${inviteCompany.companyId}/members/${memberId}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to remove member @${memberName}`);
+      }
+
+      setCompanyMembers((prev) => prev.filter((m) => m.memberId !== memberId));
+      setConfirmRemoveMember(null);
+      setInviteSuccess(`Member @${memberName} has been removed from this company.`);
+      setTimeout(() => setInviteSuccess(null), 3500);
+    } catch (err: any) {
+      setInviteError(err.message || "Failed to remove member");
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
   // ── Invite Contributors Modal Actions (with Instant 0ms SWR Caching) ──
   const openInviteModal = async (company: CompanyAdminItem) => {
     setInviteCompany(company);
     try {
       sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "invite", company }));
     } catch { }
+    setTeamWorkspaceTab("invite");
     setSelectedRepoForInvite(null);
     setRepoContributorsList([]);
     setExistingInvitations([]);
     setSelectedContributorsForInvite({});
     setContributorSearchQuery("");
+    setMemberSearchQuery("");
     setInviteError("");
     setInviteSuccess(null);
+    setConfirmRemoveMember(null);
+
+    // Fetch company members
+    fetchCompanyMembers(company.companyId);
 
     // Fast In-Memory Cache Check for Company Repos
     const persistedRepos = apiCache.read<CompanyRepoItem[]>(`${API_BASE_URL}/companies/${company.companyId}/repositories`);
@@ -2546,12 +2722,15 @@ export default function UserDashboard() {
                       const isInspecting = activeRepoForContributors === repo.name;
                       const contributors = contributorsMap[repo.name] || [];
                       const isLoadingContribs = loadingContributors[repo.name];
+                      const importedRepo = companyImportedRepos.find(
+                        (ir) => String(ir.githubRepositoryId) === String(repo.githubRepositoryId) || ir.repositoryName.toLowerCase() === repo.name.toLowerCase()
+                      );
 
                       return (
                         <div
                           key={repo.githubRepositoryId}
                           className={`bg-card rounded-2xl border transition-all duration-200 p-5 flex flex-col justify-between gap-4 ${isAlreadyAdded
-                              ? "border-emerald-500/20 bg-emerald-950/5 opacity-80"
+                              ? "border-emerald-500/20 bg-emerald-950/5"
                               : isNewlySelected
                                 ? "border-indigo-500/50 bg-indigo-950/10 shadow-md shadow-indigo-950/10"
                                 : "border-border hover:border-slate-700 shadow-sm"
@@ -2595,17 +2774,69 @@ export default function UserDashboard() {
                                 </div>
                               </label>
 
-                              <button
-                                type="button"
-                                onClick={() => handleInspectContributors(manageCompany?.githubOrganizationName || "", repo.name, manageCompany?.githubInstallationId ?? undefined)}
-                                className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 shrink-0 ${isInspecting
-                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                                    : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted"
-                                  }`}
-                              >
-                                <Users size={12} /> Contributors
-                              </button>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {isAlreadyAdded && importedRepo && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteRepo({ id: importedRepo.repositoryId, name: repo.name })}
+                                    disabled={deletingRepoId === importedRepo.repositoryId}
+                                    className="text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-300 transition-all flex items-center gap-1.5 shadow-sm"
+                                    title={`Remove ${repo.name} from company`}
+                                  >
+                                    {deletingRepoId === importedRepo.repositoryId ? (
+                                      <Loader2 size={12} className="animate-spin text-red-400" />
+                                    ) : (
+                                      <Trash2 size={12} className="text-red-400" />
+                                    )}
+                                    <span>Remove</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleInspectContributors(manageCompany?.githubOrganizationName || "", repo.name, manageCompany?.githubInstallationId ?? undefined)}
+                                  className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${isInspecting
+                                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                      : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted"
+                                    }`}
+                                >
+                                  <Users size={12} /> Contributors
+                                </button>
+                              </div>
                             </div>
+
+                            {/* Remove Repository Confirmation Banner */}
+                            {isAlreadyAdded && importedRepo && confirmDeleteRepo?.name === repo.name && (
+                              <div className="mt-3 p-3.5 rounded-xl bg-red-950/30 border border-red-500/30 space-y-2.5 animate-in fade-in duration-150">
+                                <div className="flex items-start gap-2">
+                                  <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
+                                  <div className="text-xs text-red-200">
+                                    <span className="font-bold">Remove repository '{repo.name}'?</span>
+                                    <p className="text-[11px] text-red-300/80 mt-0.5">
+                                      This will delete this repository from {manageCompany?.companyName} and remove all associated analysis metrics, history, and member access.
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteRepo(null)}
+                                    className="px-2.5 py-1 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground text-xs font-medium transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveRepository(importedRepo.repositoryId, repo.name)}
+                                    disabled={deletingRepoId === importedRepo.repositoryId}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                                  >
+                                    {deletingRepoId === importedRepo.repositoryId ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                    <span>Confirm Remove</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Contributors Drawer */}
                             {isInspecting && (
@@ -2711,64 +2942,67 @@ export default function UserDashboard() {
                 <div className="space-y-2 max-w-2xl">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
                     <Users size={13} />
-                    <span>Contributor Onboarding</span>
+                    <span>Team & Contributor Workspace</span>
                   </div>
                   <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-                    {inviteCompany?.companyName || "Organization"} Contributor Invitations
+                    {inviteCompany?.companyName || "Organization"} Team & Access
                   </h1>
                   <p className="text-sm text-slate-300 leading-relaxed">
-                    Select a repository below to invite any contributor across all repository branches directly via email to grant them access to technical debt metrics and refactoring insights.
+                    Manage your organization's team members, invite new GitHub repository contributors via email, or revoke and remove member access as needed.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-4 shrink-0 bg-card/60 backdrop-blur-md p-4 rounded-2xl border border-border">
                   <div className="text-center px-3 border-r border-border">
-                    <p className="text-2xl font-bold text-white">{companyRepos.length}</p>
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Repositories</p>
+                    <p className="text-2xl font-bold text-white">{companyMembers.length}</p>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Members</p>
                   </div>
                   <div className="text-center px-3">
-                    <p className="text-2xl font-bold text-emerald-400">{Object.keys(selectedContributorsForInvite).length}</p>
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Selected</p>
+                    <p className="text-2xl font-bold text-emerald-400">{companyRepos.length}</p>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Repositories</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Repository Selector Tabs */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
-                1. Select Target Repository:
-              </label>
-              {loadingCompanyReposForInvite ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                  <Loader2 size={14} className="animate-spin text-emerald-400" />
-                  <span>Loading company repositories...</span>
-                </div>
-              ) : companyRepos.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-400/25 text-xs text-amber-300">
-                  No repositories found for this company. Please add repositories first via "Manage Repos".
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2.5">
-                  {companyRepos.map((repo) => {
-                    const isSelected = selectedRepoForInvite?.repositoryId === repo.repositoryId;
-                    return (
-                      <button
-                        key={repo.repositoryId}
-                        type="button"
-                        onClick={() => inviteCompany && loadRepoContributorsAndInvites(inviteCompany, repo)}
-                        className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 border shadow-sm ${isSelected
-                            ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-950/20 scale-105"
-                            : "bg-card text-foreground border-border hover:border-slate-700 hover:bg-muted"
-                          }`}
-                      >
-                        <Code2 size={14} className={isSelected ? "text-white" : "text-emerald-400"} />
-                        <span>{repo.repositoryName}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+            {/* Workspace Sub-Tabs */}
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <button
+                type="button"
+                onClick={() => setTeamWorkspaceTab("invite")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
+                  teamWorkspaceTab === "invite"
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/20"
+                    : "bg-card text-muted-foreground hover:text-foreground hover:bg-muted border border-border"
+                }`}
+              >
+                <UserPlus size={14} />
+                <span>Invite Contributors</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTeamWorkspaceTab("members");
+                  if (inviteCompany) fetchCompanyMembers(inviteCompany.companyId);
+                }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
+                  teamWorkspaceTab === "members"
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/20"
+                    : "bg-card text-muted-foreground hover:text-foreground hover:bg-muted border border-border"
+                }`}
+              >
+                <Users size={14} />
+                <span>Organization Members</span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    teamWorkspaceTab === "members"
+                      ? "bg-white/20 text-white"
+                      : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  }`}
+                >
+                  {companyMembers.length}
+                </span>
+              </button>
             </div>
 
             {/* Feedback Banners */}
@@ -2791,161 +3025,405 @@ export default function UserDashboard() {
               </div>
             )}
 
-            {/* Contributors List & Invite Form */}
-            {selectedRepoForInvite && (
-              <div className="space-y-4">
+            {teamWorkspaceTab === "invite" ? (
+              /* ── TAB 1: INVITE CONTRIBUTORS ── */
+              <div className="space-y-6">
+                {/* Repository Selector Tabs */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
+                    1. Select Target Repository:
+                  </label>
+                  {loadingCompanyReposForInvite ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                      <Loader2 size={14} className="animate-spin text-emerald-400" />
+                      <span>Loading company repositories...</span>
+                    </div>
+                  ) : companyRepos.length === 0 ? (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-400/25 text-xs text-amber-300">
+                      No repositories found for this company. Please add repositories first via "Manage Repos".
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2.5">
+                      {companyRepos.map((repo) => {
+                        const isSelected = selectedRepoForInvite?.repositoryId === repo.repositoryId;
+                        return (
+                          <button
+                            key={repo.repositoryId}
+                            type="button"
+                            onClick={() => inviteCompany && loadRepoContributorsAndInvites(inviteCompany, repo)}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-200 border shadow-sm ${isSelected
+                                ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-950/20 scale-105"
+                                : "bg-card text-foreground border-border hover:border-slate-700 hover:bg-muted"
+                              }`}
+                          >
+                            <Code2 size={14} className={isSelected ? "text-white" : "text-emerald-400"} />
+                            <span>{repo.repositoryName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Contributors List & Invite Form */}
+                {selectedRepoForInvite && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                          <span>2. Repository Contributors ({repoContributorsList.length})</span>
+                          {existingInvitations.filter(i => i.status === "PENDING").length > 0 && (
+                            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-400/25 font-semibold">
+                              {existingInvitations.filter(i => i.status === "PENDING").length} Pending
+                            </span>
+                          )}
+                        </h2>
+                        <p className="text-xs text-muted-foreground">Select contributors and enter their email address to send invitation</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-full sm:w-56">
+                          <Search size={14} className="text-muted-foreground shrink-0" />
+                          <input
+                            type="text"
+                            placeholder="Filter contributor..."
+                            value={contributorSearchQuery}
+                            onChange={(e) => setContributorSearchQuery(e.target.value)}
+                            className="bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none w-full"
+                          />
+                        </div>
+
+                        {repoContributorsList.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleSelectAllContributors}
+                            className="text-xs font-semibold px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors whitespace-nowrap shadow-sm"
+                          >
+                            {repoContributorsList.every((c) => c.login in selectedContributorsForInvite) ? "Deselect All" : "Select All"}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleSendInvitationsSubmit}
+                          disabled={sendingInvitations || Object.keys(selectedContributorsForInvite).length === 0}
+                          className="inline-flex items-center gap-2 text-xs font-bold px-5 py-2 rounded-xl text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all shadow-md disabled:opacity-50 shrink-0"
+                        >
+                          {sendingInvitations ? (
+                            <>
+                              <Loader2 size={13} className="animate-spin" />
+                              <span>Sending...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send size={13} />
+                              <span>Send {Object.keys(selectedContributorsForInvite).length > 0 ? `${Object.keys(selectedContributorsForInvite).length} ` : ""}Invites</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Contributors Grid */}
+                    {loadingRepoContributors ? (
+                      <div className="bg-card rounded-2xl border border-border p-16 text-center flex flex-col items-center justify-center gap-3">
+                        <Loader2 size={28} className="animate-spin text-emerald-400" />
+                        <span className="text-sm text-muted-foreground font-medium">Fetching contributors from GitHub...</span>
+                      </div>
+                    ) : repoContributorsList.length === 0 ? (
+                      <div className="bg-card rounded-2xl border border-border p-12 text-center">
+                        <Users size={32} className="mx-auto mb-3 text-muted-foreground" />
+                        <h3 className="text-base font-semibold text-foreground mb-1">No contributors found</h3>
+                        <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                          No public contributors found for this repository on GitHub.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {repoContributorsList
+                          .filter((c) => c.login.toLowerCase().includes(contributorSearchQuery.toLowerCase()))
+                          .map((contrib) => {
+                            const isSelected = contrib.login in selectedContributorsForInvite;
+                            const currentEmail = selectedContributorsForInvite[contrib.login] ?? "";
+                            const pendingInvite = existingInvitations.find(
+                              (i) => i.githubUsername?.toLowerCase() === contrib.login.toLowerCase() && i.status === "PENDING"
+                            );
+
+                            return (
+                              <div
+                                key={contrib.id}
+                                className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 ${isSelected
+                                    ? "border-emerald-500/50 bg-emerald-950/10 shadow-md shadow-emerald-950/10"
+                                    : pendingInvite
+                                      ? "border-amber-500/30 bg-amber-950/10"
+                                      : "border-border bg-card hover:border-slate-700 shadow-sm"
+                                  }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleInviteContributor(contrib.login)}
+                                      disabled={!!pendingInvite}
+                                      className="w-4 h-4 rounded text-emerald-400 focus:ring-emerald-500 cursor-pointer disabled:opacity-40"
+                                    />
+                                    <img src={contrib.avatar_url} alt={contrib.login} className="w-9 h-9 rounded-xl object-cover border border-border shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <a
+                                          href={contrib.html_url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="font-bold text-sm text-foreground hover:underline flex items-center gap-1 truncate"
+                                        >
+                                          @{contrib.login} <ExternalLink size={11} className="text-muted-foreground" />
+                                        </a>
+                                      </div>
+                                      <span className="text-[11px] font-semibold text-emerald-400">
+                                        Contributor
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {pendingInvite ? (
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-400/25 flex items-center gap-1">
+                                        <Clock size={11} /> Pending
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRevokeInvitation(pendingInvite.invitationId)}
+                                        disabled={revokingInvitationId === pendingInvite.invitationId}
+                                        className="px-2 py-1 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-300 transition-all text-[11px] font-semibold flex items-center gap-1 shadow-sm"
+                                        title="Revoke / cancel pending invitation"
+                                      >
+                                        {revokingInvitationId === pendingInvite.invitationId ? (
+                                          <Loader2 size={11} className="animate-spin text-red-400" />
+                                        ) : (
+                                          <Ban size={11} className="text-red-400" />
+                                        )}
+                                        <span>Revoke</span>
+                                      </button>
+                                    </div>
+                                  ) : isSelected ? (
+                                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-400/25 shrink-0">
+                                      ✓ Selected
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleInviteContributor(contrib.login)}
+                                      className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted text-foreground transition-all shrink-0"
+                                    >
+                                      + Select
+                                    </button>
+                                  )}
+                                </div>
+
+                                {isSelected && (
+                                  <div className="pt-2 border-t border-emerald-500/20">
+                                    <div className="relative">
+                                      <Mail size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                      <input
+                                        type="email"
+                                        placeholder={`Enter email address for @${contrib.login}`}
+                                        value={currentEmail}
+                                        onChange={(e) => handleEmailChange(contrib.login, e.target.value)}
+                                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-emerald-500/30 text-xs outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 bg-card text-foreground"
+                                        autoFocus
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* ── TAB 2: ORGANIZATION MEMBERS ── */
+              <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                      <span>2. Repository Contributors ({repoContributorsList.length})</span>
-                      {existingInvitations.filter(i => i.status === "PENDING").length > 0 && (
-                        <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-400/25 font-semibold">
-                          {existingInvitations.filter(i => i.status === "PENDING").length} Pending
-                        </span>
-                      )}
+                      <Users size={18} className="text-emerald-400" />
+                      <span>Current Organization Members ({companyMembers.length})</span>
                     </h2>
-                    <p className="text-xs text-muted-foreground">Select contributors and enter their email address to send invitation</p>
+                    <p className="text-xs text-muted-foreground">
+                      Users who accepted invitations and have collaboration access to repositories in this organization
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-full sm:w-56">
+                    <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-full sm:w-64">
                       <Search size={14} className="text-muted-foreground shrink-0" />
                       <input
                         type="text"
-                        placeholder="Filter contributor..."
-                        value={contributorSearchQuery}
-                        onChange={(e) => setContributorSearchQuery(e.target.value)}
+                        placeholder="Search members by username or email..."
+                        value={memberSearchQuery}
+                        onChange={(e) => setMemberSearchQuery(e.target.value)}
                         className="bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none w-full"
                       />
                     </div>
-
-                    {repoContributorsList.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleSelectAllContributors}
-                        className="text-xs font-semibold px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors whitespace-nowrap shadow-sm"
-                      >
-                        {repoContributorsList.every((c) => c.login in selectedContributorsForInvite) ? "Deselect All" : "Select All"}
-                      </button>
-                    )}
-
                     <button
                       type="button"
-                      onClick={handleSendInvitationsSubmit}
-                      disabled={sendingInvitations || Object.keys(selectedContributorsForInvite).length === 0}
-                      className="inline-flex items-center gap-2 text-xs font-bold px-5 py-2 rounded-xl text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all shadow-md disabled:opacity-50 shrink-0"
+                      onClick={() => inviteCompany && fetchCompanyMembers(inviteCompany.companyId)}
+                      disabled={loadingCompanyMembers}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all shadow-sm"
+                      title="Refresh members list"
                     >
-                      {sendingInvitations ? (
-                        <>
-                          <Loader2 size={13} className="animate-spin" />
-                          <span>Sending...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send size={13} />
-                          <span>Send {Object.keys(selectedContributorsForInvite).length > 0 ? `${Object.keys(selectedContributorsForInvite).length} ` : ""}Invites</span>
-                        </>
-                      )}
+                      <RotateCw size={13} className={loadingCompanyMembers ? "animate-spin text-emerald-400" : "text-emerald-400"} />
+                      <span>Refresh</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Contributors Grid */}
-                {loadingRepoContributors ? (
+                {loadingCompanyMembers ? (
                   <div className="bg-card rounded-2xl border border-border p-16 text-center flex flex-col items-center justify-center gap-3">
                     <Loader2 size={28} className="animate-spin text-emerald-400" />
-                    <span className="text-sm text-muted-foreground font-medium">Fetching contributors from GitHub...</span>
+                    <span className="text-sm text-muted-foreground font-medium">Loading organization members...</span>
                   </div>
-                ) : repoContributorsList.length === 0 ? (
-                  <div className="bg-card rounded-2xl border border-border p-12 text-center">
-                    <Users size={32} className="mx-auto mb-3 text-muted-foreground" />
-                    <h3 className="text-base font-semibold text-foreground mb-1">No contributors found</h3>
-                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                      No public contributors found for this repository on GitHub.
+                ) : companyMembers.length === 0 ? (
+                  <div className="bg-card rounded-2xl border border-border p-16 text-center space-y-3">
+                    <Users size={36} className="mx-auto text-muted-foreground" />
+                    <h3 className="text-base font-bold text-foreground">No joined members yet</h3>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      There are currently no active collaborators in this company. Switch to the <strong>"Invite Contributors"</strong> tab to invite repository contributors via email.
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => setTeamWorkspaceTab("invite")}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all shadow-md mt-2"
+                    >
+                      <UserPlus size={14} />
+                      <span>Invite First Contributor</span>
+                    </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {repoContributorsList
-                      .filter((c) => c.login.toLowerCase().includes(contributorSearchQuery.toLowerCase()))
-                      .map((contrib) => {
-                        const isSelected = contrib.login in selectedContributorsForInvite;
-                        const currentEmail = selectedContributorsForInvite[contrib.login] ?? "";
-                        const pendingInvite = existingInvitations.find(
-                          (i) => i.githubUsername?.toLowerCase() === contrib.login.toLowerCase() && i.status === "PENDING"
+                    {companyMembers
+                      .filter((m) => {
+                        const q = memberSearchQuery.toLowerCase();
+                        return (
+                          (m.githubUsername && m.githubUsername.toLowerCase().includes(q)) ||
+                          (m.email && m.email.toLowerCase().includes(q)) ||
+                          (m.name && m.name.toLowerCase().includes(q))
                         );
+                      })
+                      .map((member) => {
+                        const isConfirming = confirmRemoveMember?.memberId === member.memberId;
+                        const isRemoving = removingMemberId === member.memberId;
 
                         return (
                           <div
-                            key={contrib.id}
-                            className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 ${isSelected
-                                ? "border-emerald-500/50 bg-emerald-950/10 shadow-md shadow-emerald-950/10"
-                                : pendingInvite
-                                  ? "border-amber-500/30 bg-amber-950/10"
-                                  : "border-border bg-card hover:border-slate-700 shadow-sm"
-                              }`}
+                            key={member.memberId}
+                            className="p-5 rounded-2xl border border-border bg-card hover:border-emerald-500/25 transition-all duration-200 shadow-sm flex flex-col justify-between gap-4"
                           >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => toggleInviteContributor(contrib.login)}
-                                  disabled={!!pendingInvite}
-                                  className="w-4 h-4 rounded text-emerald-400 focus:ring-emerald-500 cursor-pointer disabled:opacity-40"
-                                />
-                                <img src={contrib.avatar_url} alt={contrib.login} className="w-9 h-9 rounded-xl object-cover border border-border shrink-0" />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <a
-                                      href={contrib.html_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="font-bold text-sm text-foreground hover:underline flex items-center gap-1 truncate"
-                                    >
-                                      @{contrib.login} <ExternalLink size={11} className="text-muted-foreground" />
-                                    </a>
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-md">
+                                    {(member.name || member.githubUsername || member.email || "M").slice(0, 2).toUpperCase()}
                                   </div>
-                                  <span className="text-[11px] font-semibold text-emerald-400">
-                                    Contributor
-                                  </span>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-bold text-sm text-foreground">
+                                        {member.name || member.githubUsername || "Member"}
+                                      </span>
+                                      {member.githubUsername && (
+                                        <a
+                                          href={`https://github.com/${member.githubUsername}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-xs text-emerald-400 hover:underline flex items-center gap-0.5"
+                                        >
+                                          @{member.githubUsername} <ExternalLink size={10} />
+                                        </a>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                                      <Mail size={11} className="shrink-0" />
+                                      <span>{member.email || "No email available"}</span>
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
 
-                              {pendingInvite ? (
-                                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-400/25 flex items-center gap-1 shrink-0">
-                                  <Clock size={11} /> Pending
-                                </span>
-                              ) : isSelected ? (
-                                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-400/25 shrink-0">
-                                  ✓ Selected
-                                </span>
-                              ) : (
                                 <button
                                   type="button"
-                                  onClick={() => toggleInviteContributor(contrib.login)}
-                                  className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted text-foreground transition-all shrink-0"
+                                  onClick={() => setConfirmRemoveMember(member)}
+                                  disabled={isRemoving}
+                                  className="p-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-300 transition-all text-xs font-semibold flex items-center gap-1.5 shrink-0 shadow-sm"
+                                  title={`Remove @${member.githubUsername || member.email} from organization`}
                                 >
-                                  + Select
+                                  {isRemoving ? <Loader2 size={13} className="animate-spin text-red-400" /> : <UserMinus size={13} className="text-red-400" />}
+                                  <span>Remove</span>
                                 </button>
-                              )}
+                              </div>
+
+                              {/* Member Assigned Repositories */}
+                              <div className="space-y-1.5 pt-2 border-t border-border/60">
+                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  Assigned Repositories ({member.assignedRepositories?.length || 0}):
+                                </span>
+                                {(!member.assignedRepositories || member.assignedRepositories.length === 0) ? (
+                                  <p className="text-xs text-muted-foreground italic">No specific repositories assigned.</p>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {member.assignedRepositories.map((r) => (
+                                      <span
+                                        key={r.repositoryId}
+                                        className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-medium"
+                                      >
+                                        <Code2 size={11} />
+                                        <span>{r.repositoryName}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
-                            {isSelected && (
-                              <div className="pt-2 border-t border-emerald-500/20">
-                                <div className="relative">
-                                  <Mail size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                  <input
-                                    type="email"
-                                    placeholder={`Enter email address for @${contrib.login}`}
-                                    value={currentEmail}
-                                    onChange={(e) => handleEmailChange(contrib.login, e.target.value)}
-                                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-emerald-500/30 text-xs outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 bg-card text-foreground"
-                                    autoFocus
-                                  />
+                            {/* Remove Confirmation Banner */}
+                            {isConfirming && (
+                              <div className="p-3.5 rounded-xl bg-red-950/30 border border-red-500/30 space-y-2.5 animate-in fade-in duration-150">
+                                <div className="flex items-start gap-2">
+                                  <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
+                                  <div className="text-xs text-red-200">
+                                    <span className="font-bold">Remove contributor from organization?</span>
+                                    <p className="text-[11px] text-red-300/80 mt-0.5">
+                                      @{member.githubUsername || member.email} will lose access to all assigned repositories and dashboards for {inviteCompany?.companyName}.
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmRemoveMember(null)}
+                                    className="px-2.5 py-1 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground text-xs font-medium transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMember(member.memberId, member.githubUsername || member.email || "member")}
+                                    disabled={isRemoving}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                                  >
+                                    {isRemoving ? <Loader2 size={12} className="animate-spin" /> : <UserMinus size={12} />}
+                                    <span>Confirm Remove</span>
+                                  </button>
                                 </div>
                               </div>
                             )}
+
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                              <span>Joined: {member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : "Recently"}</span>
+                              <span className="text-emerald-400/80 font-medium">Contributor Access</span>
+                            </div>
                           </div>
                         );
                       })}
