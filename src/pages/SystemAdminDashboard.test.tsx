@@ -58,6 +58,16 @@ describe('System admin dashboard', () => {
     expect(await screen.findByRole('heading', { name: 'Analysis Jobs' })).toBeInTheDocument()
   })
 
+  it('uses a valid paginated URL when loading companies', async () => {
+    renderDashboard('/admin/companies')
+
+    expect(await screen.findByRole('heading', { name: 'Companies' })).toBeInTheDocument()
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/^\/api\/admin\/companies\?/),
+      expect.any(Object),
+    ))
+  })
+
   it('supports a direct analysis-job detail URL', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const url = String(input)
