@@ -5,9 +5,7 @@ import {
   Users,
   Crown,
   ChevronRight,
-  Bell,
   Search,
-  Settings,
   LogOut,
   GitBranch,
   ExternalLink,
@@ -805,10 +803,7 @@ export default function UserDashboard() {
         },
       }));
 
-      setInvitationActionMsg({
-        type: "success",
-        text: `Analysis job #${data.analysisId} started for '${repo.repositoryName}'! Running metrics extraction and ML models...`,
-      });
+
 
       // Active polling every 2.5 seconds until entire ML pipeline is COMPLETED
       let attempts = 0;
@@ -1891,13 +1886,7 @@ export default function UserDashboard() {
               <span className="text-[11px]">{wsConnected ? "Live WS" : "Connecting..."}</span>
             </div>
 
-            <button className="relative p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <Bell size={18} />
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center" style={{ background: "#196bdf" }}>3</span>
-            </button>
-            <button className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <Settings size={18} />
-            </button>
+
             <div className="w-px h-6 bg-border mx-1" />
             <div className="flex items-center gap-2.5">
               {authUser?.picture ? (
