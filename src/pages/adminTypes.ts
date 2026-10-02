@@ -29,11 +29,38 @@ export interface SearchResult { type: 'USER' | 'COMPANY' | 'REPOSITORY' | 'ANALY
 export interface JobHistory { status: AnalysisJob['status']; message: string; timestamp: string }
 export interface JobDetail { job: AnalysisJob; history: JobHistory[] }
 
-export const formatDate = (value?: string, includeTime = false) => {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
+export const parseUtcDate = (value?: string | number | null): Date | null => {
+  if (!value) return null
+  if (typeof value === 'number') {
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  const trimmed = String(value).trim()
+  if (!trimmed) return null
+
+  // If the date string already contains a timezone (Z, z, +HH:MM, -HH:MM), parse directly
+  if (trimmed.endsWith('Z') || trimmed.endsWith('z') || /[+-]\d{2}(?::?\d{2})?$/.test(trimmed)) {
+    const d = new Date(trimmed)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+
+  // If it is an ISO string without offset (e.g. "2026-10-02T07:09:00" or "2026-10-02 07:09:00"), treat as UTC
+  const normalized = trimmed.includes('T')
+    ? `${trimmed}Z`
+    : `${trimmed.replace(' ', 'T')}Z`
+
+  const d = new Date(normalized)
+  if (!Number.isNaN(d.getTime())) return d
+
+  const fallback = new Date(trimmed)
+  return Number.isNaN(fallback.getTime()) ? null : fallback
+}
+
+export const formatDate = (value?: string | number | null, includeTime = false) => {
+  const date = parseUtcDate(value)
+  if (!date) return '—'
   return includeTime
     ? date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : date.toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
+

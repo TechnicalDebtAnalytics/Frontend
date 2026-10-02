@@ -3,7 +3,7 @@ import { ArrowLeft, FileText, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAdminApi } from '../config/adminApi'
 import type { JobDetail } from './adminTypes'
-import { formatDate } from './adminTypes'
+import { formatDate, parseUtcDate } from './adminTypes'
 
 interface ReportSummary {
   analysisId: number; repositoryName: string; overallDebtScore: number; overallHealthScore: string
@@ -22,7 +22,11 @@ export default function SystemAdminJobDetails({ analysisId }: { analysisId: numb
   }, [load])
   const duration = useMemo(() => {
     if (!detail?.job.startedAt) return 'Not available'
-    const start = new Date(detail.job.startedAt).getTime(); const end = detail.job.completedAt ? new Date(detail.job.completedAt).getTime() : fetchedAt
+    const startDate = parseUtcDate(detail.job.startedAt)
+    if (!startDate) return 'Not available'
+    const start = startDate.getTime()
+    const endDate = detail.job.completedAt ? parseUtcDate(detail.job.completedAt) : null
+    const end = endDate ? endDate.getTime() : fetchedAt
     if (!Number.isFinite(start) || !Number.isFinite(end)) return 'Not available'
     const seconds = Math.max(0, Math.round((end - start) / 1000)); return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`
   }, [detail, fetchedAt])
