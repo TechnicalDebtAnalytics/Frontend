@@ -5,6 +5,7 @@ import {
   Users,
   Crown,
   ChevronRight,
+  ChevronLeft,
   Search,
   LogOut,
   GitBranch,
@@ -443,6 +444,8 @@ export default function UserDashboard() {
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState("");
   const [selectedClassFilter, setSelectedClassFilter] = useState<"ALL" | "CRITICAL" | "HIGH">("ALL");
+  const [reportPage, setReportPage] = useState<number>(1);
+  const REPORT_PAGE_SIZE = 20;
 
   // ── WebSocket Live Analysis & Maximized Window States ──
   const [wsConnected, setWsConnected] = useState(false);
@@ -975,6 +978,7 @@ export default function UserDashboard() {
   const handleOpenReport = async (analysisId: number) => {
     setSelectedReportAnalysisId(analysisId);
     setReportError("");
+    setReportPage(1);
 
     try {
       sessionStorage.setItem(viewStorageKey, JSON.stringify({ type: "report", analysisId }));
@@ -5535,7 +5539,7 @@ export default function UserDashboard() {
                     <div className="dl-report-filters flex items-center gap-1 bg-muted p-1 rounded-xl">
                       <button
                         type="button"
-                        onClick={() => setSelectedClassFilter("ALL")}
+                        onClick={() => { setSelectedClassFilter("ALL"); setReportPage(1); }}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "ALL"
                             ? "bg-card text-foreground shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
@@ -5545,7 +5549,7 @@ export default function UserDashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSelectedClassFilter("CRITICAL")}
+                        onClick={() => { setSelectedClassFilter("CRITICAL"); setReportPage(1); }}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "CRITICAL"
                             ? "bg-red-500/10 text-red-300 shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
@@ -5561,7 +5565,7 @@ export default function UserDashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSelectedClassFilter("HIGH")}
+                        onClick={() => { setSelectedClassFilter("HIGH"); setReportPage(1); }}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "HIGH"
                             ? "bg-amber-500/10 text-amber-300 shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
@@ -5578,140 +5582,246 @@ export default function UserDashboard() {
                     </div>
                   </div>
 
-                  {/* Prioritized Class Cards List */}
-                  <div className="space-y-3">
-                    {activeReport.prioritizedRefactoringList
-                      .filter((c) => {
-                        if (selectedClassFilter === "CRITICAL")
-                          return c.riskLevel === "CRITICAL" || (c.technicalDebtScore ?? 0) >= 75;
-                        if (selectedClassFilter === "HIGH")
-                          return (c.technicalDebtScore ?? 0) >= 50;
-                        return true;
-                      })
-                      .map((cls) => (
-                        <div
-                          key={cls.classId}
-                          className="dl-report-card dl-scroll rounded-2xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                        >
-                          {/* Left: Rank & Class Info */}
-                          <div className="flex items-start gap-3.5 min-w-0">
-                            {/* Priority Rank Badge */}
-                            <div
-                              className="w-10 h-10 rounded-2xl font-black text-sm flex items-center justify-center shrink-0 shadow-xs"
-                              style={{
-                                background:
-                                  cls.refactorPriorityRank === 1
-                                    ? "#3a202b"
-                                    : cls.refactorPriorityRank <= 3
-                                      ? "#392d1e"
-                                      : "#1b293d",
-                                color:
-                                  cls.refactorPriorityRank === 1
-                                    ? "#fca5a5"
-                                    : cls.refactorPriorityRank <= 3
-                                      ? "#f6ce7a"
-                                      : "#b3c4d9",
-                              }}
-                            >
-                              #{cls.refactorPriorityRank}
-                            </div>
+                  {/* Filtered and Paginated Classes Calculation */}
+                  {(() => {
+                    const filtered = (activeReport.prioritizedRefactoringList || []).filter((c) => {
+                      if (selectedClassFilter === "CRITICAL")
+                        return c.riskLevel === "CRITICAL" || (c.technicalDebtScore ?? 0) >= 75;
+                      if (selectedClassFilter === "HIGH")
+                        return (c.technicalDebtScore ?? 0) >= 50;
+                      return true;
+                    });
 
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2.5 flex-wrap">
-                                <span className="font-extrabold text-base text-foreground tracking-tight">
-                                  {cls.className}
-                                </span>
-                                <span className="text-xs text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-md">
-                                  {cls.numberOfLinesOfCode} LOC
-                                </span>
+                    const totalCount = filtered.length;
+                    const totalPages = Math.max(1, Math.ceil(totalCount / REPORT_PAGE_SIZE));
+                    const safeCurrentPage = Math.min(Math.max(1, reportPage), totalPages);
+                    const startIndex = (safeCurrentPage - 1) * REPORT_PAGE_SIZE;
+                    const endIndex = Math.min(startIndex + REPORT_PAGE_SIZE, totalCount);
+                    const currentClasses = filtered.slice(startIndex, endIndex);
+
+                    const getPaginationPages = () => {
+                      if (totalPages <= 7) {
+                        return Array.from({ length: totalPages }, (_, i) => i + 1);
+                      }
+                      if (safeCurrentPage <= 4) {
+                        return [1, 2, 3, 4, 5, "...", totalPages];
+                      }
+                      if (safeCurrentPage >= totalPages - 3) {
+                        return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+                      }
+                      return [1, "...", safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1, "...", totalPages];
+                    };
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Summary counter banner */}
+                        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                          <span>
+                            {totalCount > 0 ? (
+                              <>
+                                Showing <strong className="text-foreground">{startIndex + 1}–{endIndex}</strong> of <strong className="text-foreground">{totalCount}</strong> prioritized classes
+                              </>
+                            ) : (
+                              "No classes found for selected filter."
+                            )}
+                          </span>
+                          {totalPages > 1 && (
+                            <span>
+                              Page <strong className="text-foreground">{safeCurrentPage}</strong> of <strong className="text-foreground">{totalPages}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Class Cards List */}
+                        <div className="space-y-3">
+                          {currentClasses.map((cls) => (
+                            <div
+                              key={cls.classId}
+                              className="dl-report-card dl-scroll rounded-2xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                            >
+                              {/* Left: Rank & Class Info */}
+                              <div className="flex items-start gap-3.5 min-w-0">
+                                {/* Priority Rank Badge */}
+                                <div
+                                  className="w-10 h-10 rounded-2xl font-black text-sm flex items-center justify-center shrink-0 shadow-xs"
+                                  style={{
+                                    background:
+                                      cls.refactorPriorityRank === 1
+                                        ? "#3a202b"
+                                        : cls.refactorPriorityRank <= 3
+                                          ? "#392d1e"
+                                          : "#1b293d",
+                                    color:
+                                      cls.refactorPriorityRank === 1
+                                        ? "#fca5a5"
+                                        : cls.refactorPriorityRank <= 3
+                                          ? "#f6ce7a"
+                                          : "#b3c4d9",
+                                  }}
+                                >
+                                  #{cls.refactorPriorityRank}
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2.5 flex-wrap">
+                                    <span className="font-extrabold text-base text-foreground tracking-tight">
+                                      {cls.className}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-md">
+                                      {cls.numberOfLinesOfCode} LOC
+                                    </span>
+                                  </div>
+
+                                  {/* Highlighted File Path Location */}
+                                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 border border-indigo-400/25 text-indigo-300 text-xs font-semibold shadow-xs">
+                                      <FileCode size={13} className="text-indigo-300 shrink-0" />
+                                      <span className="font-mono tracking-tight">
+                                        {cls.filePath
+                                          ? cls.filePath.replace(/\\/g, "/").split(/analysis-repository-[^/]+\//)[1] ||
+                                          cls.filePath.split("/").slice(-2).join("/") ||
+                                          cls.filePath
+                                          : "source file"}
+                                      </span>
+                                      <span className="text-indigo-300 font-medium text-[11px]">
+                                        (lines {cls.startLine}–{cls.endLine})
+                                      </span>
+                                    </div>
+
+                                    {cls.primaryDrivers && cls.primaryDrivers.length > 0 && (
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {cls.primaryDrivers.map((driver, dIdx) => (
+                                          <span
+                                            key={dIdx}
+                                            className="text-[11px] px-2.5 py-0.5 rounded-full bg-muted text-foreground font-medium border border-border"
+                                          >
+                                            {driver}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
 
-                              {/* Highlighted File Path Location */}
-                              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 border border-indigo-400/25 text-indigo-300 text-xs font-semibold shadow-xs">
-                                  <FileCode size={13} className="text-indigo-300 shrink-0" />
-                                  <span className="font-mono tracking-tight">
-                                    {cls.filePath
-                                      ? cls.filePath.replace(/\\/g, "/").split(/analysis-repository-[^/]+\//)[1] ||
-                                      cls.filePath.split("/").slice(-2).join("/") ||
-                                      cls.filePath
-                                      : "source file"}
-                                  </span>
-                                  <span className="text-indigo-300 font-medium text-[11px]">
-                                    (lines {cls.startLine}–{cls.endLine})
+                              {/* Right: Scores & Risk Badges */}
+                              <div className="flex items-center gap-3 shrink-0 flex-wrap md:justify-end">
+                                {/* Bug Risk Pill */}
+                                <div className="px-3 py-1.5 rounded-xl border border-border bg-muted text-center min-w-[90px]">
+                                  <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Bug Risk</span>
+                                  <span className="text-xs font-extrabold text-foreground">
+                                    {cls.bugProbability != null ? `${Math.round(cls.bugProbability * 100)}%` : "0%"}
                                   </span>
                                 </div>
 
-                                {cls.primaryDrivers && cls.primaryDrivers.length > 0 && (
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {cls.primaryDrivers.map((driver, dIdx) => (
-                                      <span
-                                        key={dIdx}
-                                        className="text-[11px] px-2.5 py-0.5 rounded-full bg-muted text-foreground font-medium border border-border"
-                                      >
-                                        {driver}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                                {/* Risk Level */}
+                                <div
+                                  className="px-3 py-1.5 rounded-xl text-center min-w-[85px]"
+                                  style={{
+                                    background:
+                                      cls.riskLevel === "CRITICAL"
+                                        ? "#3a202b"
+                                        : cls.riskLevel === "HIGH"
+                                          ? "#392d1e"
+                                          : "#172e49",
+                                    color:
+                                      cls.riskLevel === "CRITICAL"
+                                        ? "#fca5a5"
+                                        : cls.riskLevel === "HIGH"
+                                          ? "#f6ce7a"
+                                          : "#8ccaff",
+                                  }}
+                                >
+                                  <span className="block text-[10px] uppercase font-bold tracking-wider opacity-80">Risk</span>
+                                  <span className="text-xs font-black">{cls.riskLevel}</span>
+                                </div>
+
+                                {/* Technical Debt Score */}
+                                <div
+                                  className="px-4 py-2 rounded-2xl text-center shadow-sm min-w-[100px]"
+                                  style={{
+                                    background:
+                                      cls.technicalDebtScore >= 75
+                                        ? "#922e3b"
+                                        : cls.technicalDebtScore >= 50
+                                          ? "#926017"
+                                          : cls.technicalDebtScore >= 25
+                                            ? "#2563EB"
+                                            : "#137756",
+                                    color: "#FFFFFF",
+                                  }}
+                                >
+                                  <span className="block text-[10px] uppercase font-bold tracking-wider opacity-90">Debt Score</span>
+                                  <span className="text-base font-black tracking-tight">{cls.technicalDebtScore}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          ))}
 
-                          {/* Right: Scores & Risk Badges */}
-                          <div className="flex items-center gap-3 shrink-0 flex-wrap md:justify-end">
-                            {/* Bug Risk Pill */}
-                            <div className="px-3 py-1.5 rounded-xl border border-border bg-muted text-center min-w-[90px]">
-                              <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Bug Risk</span>
-                              <span className="text-xs font-extrabold text-foreground">
-                                {cls.bugProbability != null ? `${Math.round(cls.bugProbability * 100)}%` : "0%"}
-                              </span>
+                          {currentClasses.length === 0 && (
+                            <div className="p-8 text-center rounded-2xl border border-dashed border-border bg-muted/30">
+                              <p className="text-sm text-muted-foreground">No classes matched the selected refactoring priority filter.</p>
                             </div>
-
-                            {/* Risk Level */}
-                            <div
-                              className="px-3 py-1.5 rounded-xl text-center min-w-[85px]"
-                              style={{
-                                background:
-                                  cls.riskLevel === "CRITICAL"
-                                    ? "#3a202b"
-                                    : cls.riskLevel === "HIGH"
-                                      ? "#392d1e"
-                                      : "#172e49",
-                                color:
-                                  cls.riskLevel === "CRITICAL"
-                                    ? "#fca5a5"
-                                    : cls.riskLevel === "HIGH"
-                                      ? "#f6ce7a"
-                                      : "#8ccaff",
-                              }}
-                            >
-                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-80">Risk</span>
-                              <span className="text-xs font-black">{cls.riskLevel}</span>
-                            </div>
-
-                            {/* Technical Debt Score */}
-                            <div
-                              className="px-4 py-2 rounded-2xl text-center shadow-sm min-w-[100px]"
-                              style={{
-                                background:
-                                  cls.technicalDebtScore >= 75
-                                    ? "#922e3b"
-                                    : cls.technicalDebtScore >= 50
-                                      ? "#926017"
-                                      : cls.technicalDebtScore >= 25
-                                        ? "#2563EB"
-                                        : "#137756",
-                                color: "#FFFFFF",
-                              }}
-                            >
-                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-90">Debt Score</span>
-                              <span className="text-base font-black tracking-tight">{cls.technicalDebtScore}</span>
-                            </div>
-                          </div>
+                          )}
                         </div>
-                      ))}
-                  </div>
+
+                        {/* Pagination Bar */}
+                        {totalPages > 1 && (
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border mt-2">
+                            <span className="text-xs text-muted-foreground">
+                              Showing 20 items per page
+                            </span>
+                            <div className="flex items-center gap-1.5 self-center sm:self-auto flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => setReportPage((p) => Math.max(1, p - 1))}
+                                disabled={safeCurrentPage <= 1}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted hover:bg-border text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                              >
+                                <ChevronLeft size={13} />
+                                <span>Previous</span>
+                              </button>
+
+                              {getPaginationPages().map((pageItem, idx) => {
+                                if (pageItem === "...") {
+                                  return (
+                                    <span key={`ellipsis-${idx}`} className="px-2 text-xs text-muted-foreground select-none">
+                                      ...
+                                    </span>
+                                  );
+                                }
+                                const pageNum = Number(pageItem);
+                                const isActive = pageNum === safeCurrentPage;
+                                return (
+                                  <button
+                                    key={`page-${pageNum}`}
+                                    type="button"
+                                    onClick={() => setReportPage(pageNum)}
+                                    className={`min-w-[32px] h-8 px-2 rounded-xl text-xs font-bold transition-all ${isActive
+                                        ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 scale-105"
+                                        : "bg-muted text-muted-foreground hover:text-foreground hover:bg-border"
+                                      }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              })}
+
+                              <button
+                                type="button"
+                                onClick={() => setReportPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={safeCurrentPage >= totalPages}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted hover:bg-border text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                              >
+                                <span>Next</span>
+                                <ChevronRight size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>
