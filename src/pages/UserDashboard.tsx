@@ -1536,6 +1536,12 @@ export default function UserDashboard() {
     }
   };
 
+  const clearCompanyComponentCaches = (companyId: number) => {
+    delete companyReposCacheRef.current[companyId];
+    repoContributorsCacheRef.current = {};
+    reportsCacheRef.current = {};
+  };
+
   const handleRemoveRepository = async (repoId: number, repoName: string) => {
     if (!manageCompany) return;
     setDeletingRepoId(repoId);
@@ -1555,11 +1561,20 @@ export default function UserDashboard() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || `Failed to remove repository ${repoName}`);
+        throw new Error(res.status === 404 || res.status === 405 ? "Repository removal is unavailable on this server. Deploy the updated backend and try again." : errData.message || `Failed to remove repository ${repoName}`);
       }
 
       // Invalidate caches & update local state
       apiCache.clear();
+      clearCompanyComponentCaches(manageCompany.companyId);
+      try { localStorage.removeItem(`debtlens_analysis_recent_${cacheUserId}_${repoId}`); } catch { }
+      setCompanyRepos(prev => prev.filter(repo => repo.repositoryId !== repoId));
+      setActiveCompanyRepos(prev => prev.filter(repo => repo.repositoryId !== repoId));
+      setPastAnalysesRepos(prev => prev.filter(repo => repo.repositoryId !== repoId));
+      setPastAnalysesList(prev => prev.filter(job => job.repositoryId !== repoId));
+      setAnalysisStatusMap(prev => { const next = { ...prev }; delete next[repoId]; return next; });
+      setNewlySelectedRepoIds(prev => prev.filter(id => String(id) !== String(companyImportedRepos.find(repo => repo.repositoryId === repoId)?.githubRepositoryId)));
+      setManageCompany(prev => prev ? { ...prev, repositories: prev.repositories?.filter(repo => repo.repositoryId !== repoId), totalRepositories: Math.max(0, prev.totalRepositories - 1) } : prev);
       setAvailableForCompany((prev) =>
         prev.map((r) => {
           const matched = companyImportedRepos.find((ir) => ir.repositoryId === repoId);
@@ -1669,6 +1684,7 @@ export default function UserDashboard() {
         throw new Error(errData.message || "Failed to add repositories");
       }
 
+      clearCompanyComponentCaches(manageCompany.companyId);
       setAddReposSuccess(true);
       await fetchAdminCompanies();
 
@@ -1766,10 +1782,17 @@ export default function UserDashboard() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || `Failed to remove member @${memberName}`);
+        throw new Error(res.status === 404 || res.status === 405 ? "Member removal is unavailable on this server. Deploy the updated backend and try again." : errData.message || `Failed to remove member @${memberName}`);
       }
 
+      clearCompanyComponentCaches(inviteCompany.companyId);
+      setExistingInvitations([]);
+      setSelectedContributorsForInvite({});
       setCompanyMembers((prev) => prev.filter((m) => m.memberId !== memberId));
+      if (selectedRepoForInvite) {
+        const token = headers.Authorization?.replace(/^Bearer /, '');
+        await loadRepoContributorsAndInvites(inviteCompany, selectedRepoForInvite, token);
+      }
       setConfirmRemoveMember(null);
       setInviteSuccess(`Member @${memberName} has been removed from this company.`);
       setTimeout(() => setInviteSuccess(null), 3500);
