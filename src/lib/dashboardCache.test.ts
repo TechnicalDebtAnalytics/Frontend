@@ -111,4 +111,33 @@ describe('dashboard cache', () => {
     await cache.fetch(repos);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
+
+  it('persists analysis history for immediate reads but revalidates every fetch', async () => {
+    const url = '/api/companies/1/analysis';
+    const completed = [{ analysisId: 1, status: 'COMPLETED' }];
+    const running = [{ analysisId: 2, status: 'RUNNING' }, ...completed];
+    const fetch = vi.fn().mockResolvedValueOnce(json(completed)).mockResolvedValueOnce(json(running));
+    vi.stubGlobal('fetch', fetch);
+    await createDashboardCache(base, 'user-a').fetch(url, { headers });
+    const refreshed = createDashboardCache(base, 'user-a');
+    expect(refreshed.read(url)).toEqual(completed);
+    expect(await (await refreshed.fetch(url, { headers })).json()).toEqual(running);
+    expect(refreshed.read(url)).toEqual(running);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(createDashboardCache(base, 'user-b').read(url)).toBeNull();
+  });
+
+  it('expires history snapshots and clears them when a new analysis starts', async () => {
+    vi.useFakeTimers();
+    const url = '/api/companies/1/analysis';
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(json([]))));
+    const cache = createDashboardCache(base, 'user-a');
+    await cache.fetch(url, { headers });
+    vi.advanceTimersByTime(300_001);
+    expect(cache.read(url)).toBeNull();
+    await cache.fetch(url, { headers });
+    await cache.fetch('/api/repositories/1/analysis', { method: 'POST', headers });
+    expect(cache.read(url)).toBeNull();
+  });
+
 });
