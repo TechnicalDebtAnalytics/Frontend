@@ -148,4 +148,238 @@ describe('UserDashboard UI flows', () => {
     expect(await screen.findByText(/Member @alex has been removed/)).toBeInTheDocument()
   })
 
+    it('starts repository analysis successfully', async () => {
+    const user = userEvent.setup()
+
+    const company = {
+      companyId: 1,
+      companyName: 'Acme',
+      githubOrganizationName: 'acme',
+      githubOrganizationUrl: 'https://github.com/acme',
+      totalRepositories: 1,
+      repositories: [],
+      createdAt: new Date().toISOString(),
+    }
+
+    const repo = {
+      repositoryId: 201,
+      githubRepositoryId: 101,
+      repositoryName: 'application-service',
+      repositoryUrl: 'https://github.com/acme/application-service',
+      defaultBranch: 'main',
+    }
+
+    sessionStorage.setItem(
+      'debtlens_active_user_view:auth0|test-user',
+      JSON.stringify({
+        type: 'all',
+        company,
+        role: 'admin',
+      }),
+    )
+
+    const { fetchMock } = renderAuthenticatedDashboard((url, init) => {
+      if (
+        url.endsWith('/companies/my-admin')
+      ) {
+        return Promise.resolve(
+          new Response(JSON.stringify([company]), { status: 200 }),
+        )
+      }
+
+      if (
+        url.endsWith('/companies/1/repositories') &&
+        init?.method !== 'POST'
+      ) {
+        return Promise.resolve(
+          new Response(JSON.stringify([repo]), { status: 200 }),
+        )
+      }
+
+      if (
+        url.endsWith('/companies/1/analysis') &&
+        init?.method !== 'POST'
+      ) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), { status: 200 }),
+        )
+      }
+
+      if (
+        url.endsWith('/repositories/201/analysis') &&
+        init?.method === 'POST'
+      ) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              analysisId: 42,
+              startedAt: new Date().toISOString(),
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          ),
+        )
+      }
+
+      return Promise.resolve(
+        new Response(JSON.stringify([]), { status: 200 }),
+      )
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Analyze' }),
+      ).toBeInTheDocument(),
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Analyze' }),
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('application-service'),
+      ).toBeInTheDocument(),
+    )
+
+    const startButtons = screen.getAllByRole('button', {
+      name: 'Start Analysis',
+    })
+
+    expect(startButtons).toHaveLength(1)
+
+    await user.click(startButtons[0])
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            url.endsWith('/repositories/201/analysis') &&
+            init?.method === 'POST',
+        ),
+      ).toBe(true),
+    )
+
+    expect(
+      await screen.findByText('Analyzing in Progress...'),
+    ).toBeInTheDocument()
+  })
+
+
+    it('cancels a running repository analysis successfully', async () => {
+  const user = userEvent.setup()
+
+  const company = {
+    companyId: 1,
+    companyName: 'Acme',
+    githubOrganizationName: 'acme',
+    githubOrganizationUrl: 'https://github.com/acme',
+    totalRepositories: 1,
+    repositories: [],
+    createdAt: new Date().toISOString(),
+  }
+
+  const repo = {
+    repositoryId: 201,
+    githubRepositoryId: 101,
+    repositoryName: 'application-service',
+    repositoryUrl: 'https://github.com/acme/application-service',
+    defaultBranch: 'main',
+  }
+
+  sessionStorage.setItem(
+    'debtlens_active_user_view:auth0|test-user',
+    JSON.stringify({
+      type: 'analysis',
+      company,
+      role: 'admin',
+    }),
+  )
+
+  const runningAnalysis = {
+    analysisId: 42,
+    repositoryId: 201,
+    repositoryName: 'application-service',
+    repositoryUrl: repo.repositoryUrl,
+    companyId: 1,
+    companyName: 'Acme',
+    branch: 'main',
+    startedByUserId: 1,
+    startedByUserName: 'Test User',
+    status: 'RUNNING',
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    totalClassesAnalyzed: 10,
+  }
+
+  const { fetchMock } = renderAuthenticatedDashboard((url, init) => {
+    if (url.endsWith('/companies/my-admin')) {
+      return Promise.resolve(
+        new Response(JSON.stringify([company]), { status: 200 }),
+      )
+    }
+
+    if (
+      url.endsWith('/companies/1/repositories') &&
+      init?.method !== 'POST'
+    ) {
+      return Promise.resolve(
+        new Response(JSON.stringify([repo]), { status: 200 }),
+      )
+    }
+
+    if (
+      url.endsWith('/companies/1/analysis') &&
+      init?.method !== 'POST'
+    ) {
+      return Promise.resolve(
+        new Response(JSON.stringify([runningAnalysis]), { status: 200 }),
+      )
+    }
+
+    if (
+      url.endsWith('/analysis/42/cancel') &&
+      init?.method === 'POST'
+    ) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ message: 'Analysis cancelled' }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      )
+    }
+
+    return Promise.resolve(
+      new Response(JSON.stringify([]), { status: 200 }),
+    )
+  })
+
+  await waitFor(() =>
+    expect(screen.getByText('application-service')).toBeInTheDocument(),
+  )
+
+  expect(
+    await screen.findByRole('button', { name: 'Cancel Analysis' }),
+  ).toBeInTheDocument()
+
+  await user.click(
+    screen.getByRole('button', { name: 'Cancel Analysis' }),
+  )
+
+  await waitFor(() =>
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          url.endsWith('/analysis/42/cancel') &&
+          init?.method === 'POST',
+      ),
+    ).toBe(true),
+  )
+})
+
 })
