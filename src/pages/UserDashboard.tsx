@@ -42,49 +42,12 @@ import {
   Trash2,
   UserMinus,
   Ban,
+  Download,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 import { createDashboardCache } from "../lib/dashboardCache";
-
-interface RefactoringAction {
-  type: string;
-  priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | string;
-  title: string;
-  description: string;
-  suggestedRefactoring: string;
-}
-
-interface ClassRecommendation {
-  classId: number;
-  className: string;
-  filePath: string;
-  startLine: number;
-  endLine: number;
-  numberOfLinesOfCode: number;
-  technicalDebtScore: number;
-  healthScore: "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | string;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | string;
-  bugProbability: number;
-  refactorPriorityRank: number;
-  primaryDrivers: string[];
-  recommendedActions: RefactoringAction[];
-}
-
-interface TechnicalDebtReport {
-  reportId: number;
-  analysisId: number;
-  repositoryId: number;
-  repositoryName: string;
-  branch: string;
-  generatedAt: string;
-  overallDebtScore: number;
-  overallHealthScore: string;
-  overallRiskLevel: string;
-  totalClasses: number;
-  defectiveClassesCount: number;
-  totalSatdComments: number;
-  prioritizedRefactoringList: ClassRecommendation[];
-}
+import { getRecommendationSeverity } from "../lib/analysisReport";
+import type { RecommendationSeverity, TechnicalDebtReport } from "../types/analysisReport";
 
 interface RepoContributor {
   id: number;
@@ -443,7 +406,9 @@ export default function UserDashboard() {
   const [activeReport, setActiveReport] = useState<TechnicalDebtReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState("");
-  const [selectedClassFilter, setSelectedClassFilter] = useState<"ALL" | "CRITICAL" | "HIGH">("ALL");
+  const [selectedClassFilter, setSelectedClassFilter] = useState<"ALL" | RecommendationSeverity>("ALL");
+  const [downloadingAnalysisId, setDownloadingAnalysisId] = useState<number | null>(null);
+  const [pdfError, setPdfError] = useState("");
 
   // ── WebSocket Live Analysis & Maximized Window States ──
   const [wsConnected, setWsConnected] = useState(false);
@@ -1015,6 +980,42 @@ export default function UserDashboard() {
       }
     } finally {
       setLoadingReport(false);
+    }
+  };
+
+  const handleDownloadReport = async (analysisId: number, loadedReport?: TechnicalDebtReport) => {
+    setDownloadingAnalysisId(analysisId);
+    setPdfError("");
+
+    try {
+      let report = loadedReport ?? reportsCacheRef.current[analysisId];
+      if (!report) {
+        let token = "";
+        try {
+          token = await getAccessTokenSilently();
+        } catch { }
+
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await apiCache.fetch(`${API_BASE_URL}/analysis/${analysisId}/report`, { headers });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || "The analysis report could not be loaded.");
+        }
+
+        report = await res.json() as TechnicalDebtReport;
+        reportsCacheRef.current[analysisId] = report;
+      }
+
+      // Give React a frame to display the generating state before the synchronous PDF work begins.
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const { generateAnalysisReportPdf } = await import("../lib/generateAnalysisReportPdf");
+      generateAnalysisReportPdf(report);
+    } catch (err: unknown) {
+      setPdfError(err instanceof Error ? err.message : "PDF generation failed. Please try again.");
+    } finally {
+      setDownloadingAnalysisId(null);
     }
   };
 
@@ -2227,6 +2228,25 @@ export default function UserDashboard() {
         </div>
       )}
 
+      {pdfError && (
+        <div className="fixed bottom-6 left-1/2 z-50 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2" role="alert">
+          <div className="dl-toast-danger flex items-center justify-between gap-3 rounded-2xl border p-4 shadow-2xl">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <AlertCircle size={16} className="shrink-0 text-red-400" />
+              <span>Unable to download PDF: {pdfError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPdfError("")}
+              className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground"
+              aria-label="Dismiss PDF error"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Main Content ── */}
       <main className="max-w-7xl mx-auto px-6 py-8">
 
@@ -2513,14 +2533,25 @@ export default function UserDashboard() {
                             )}
 
                             {isCompleted && currentStatus?.analysisId && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenReport(currentStatus.analysisId!)}
-                                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/20 transition-all hover:scale-[1.02] active:scale-95"
-                              >
-                                <Sparkles size={14} />
-                                View Recommendations
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReport(currentStatus.analysisId!)}
+                                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/20 transition-all hover:scale-[1.02] active:scale-95"
+                                >
+                                  <Sparkles size={14} />
+                                  View Recommendations
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDownloadReport(currentStatus.analysisId!)}
+                                  disabled={downloadingAnalysisId === currentStatus.analysisId}
+                                  className="dl-pdf-button inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all hover:scale-[1.02] active:scale-95 disabled:cursor-wait disabled:opacity-60"
+                                >
+                                  {downloadingAnalysisId === currentStatus.analysisId ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                  {downloadingAnalysisId === currentStatus.analysisId ? "Generating PDF..." : "Download PDF"}
+                                </button>
+                              </>
                             )}
 
                             <button
@@ -4028,14 +4059,25 @@ export default function UserDashboard() {
                         {/* Right: Actions */}
                         <div className="flex items-center gap-2.5 shrink-0 flex-wrap md:justify-end">
                           {isCompleted && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReport(job.analysisId)}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/25 transition-all hover:scale-105 active:scale-95 shadow-sm"
-                            >
-                              <Sparkles size={13} className="text-emerald-300" />
-                              <span>View Recommendations</span>
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReport(job.analysisId)}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/25 transition-all hover:scale-105 active:scale-95 shadow-sm"
+                              >
+                                <Sparkles size={13} className="text-emerald-300" />
+                                <span>View Recommendations</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDownloadReport(job.analysisId)}
+                                disabled={downloadingAnalysisId === job.analysisId}
+                                className="dl-pdf-button inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all hover:scale-105 active:scale-95 disabled:cursor-wait disabled:opacity-60 shadow-sm"
+                              >
+                                {downloadingAnalysisId === job.analysisId ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                                <span>{downloadingAnalysisId === job.analysisId ? "Generating PDF..." : "Download PDF"}</span>
+                              </button>
+                            </>
                           )}
 
                           {isRunning && (
@@ -5534,7 +5576,7 @@ export default function UserDashboard() {
                     </div>
 
                     {/* Filter Tabs */}
-                    <div className="dl-report-filters flex items-center gap-1 bg-muted p-1 rounded-xl">
+                    <div className="dl-report-filters flex flex-wrap items-center gap-1 bg-muted p-1 rounded-xl">
                       <button
                         type="button"
                         onClick={() => setSelectedClassFilter("ALL")}
@@ -5556,7 +5598,7 @@ export default function UserDashboard() {
                         Critical (
                         {
                           activeReport.prioritizedRefactoringList.filter(
-                            (c) => c.riskLevel === "CRITICAL" || (c.technicalDebtScore ?? 0) >= 75
+                            (c) => getRecommendationSeverity(c) === "CRITICAL"
                           ).length
                         }
                         )
@@ -5572,10 +5614,30 @@ export default function UserDashboard() {
                         High Debt (
                         {
                           activeReport.prioritizedRefactoringList.filter(
-                            (c) => (c.technicalDebtScore ?? 0) >= 50
+                            (c) => getRecommendationSeverity(c) === "HIGH"
                           ).length
                         }
                         )
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedClassFilter("MEDIUM")}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "MEDIUM"
+                            ? "bg-blue-500/10 text-blue-300 shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        Medium ({activeReport.prioritizedRefactoringList.filter((c) => getRecommendationSeverity(c) === "MEDIUM").length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedClassFilter("LOW")}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${selectedClassFilter === "LOW"
+                            ? "bg-emerald-500/10 text-emerald-300 shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        Low ({activeReport.prioritizedRefactoringList.filter((c) => getRecommendationSeverity(c) === "LOW").length})
                       </button>
                     </div>
                   </div>
@@ -5584,11 +5646,7 @@ export default function UserDashboard() {
                   <div className="space-y-3">
                     {activeReport.prioritizedRefactoringList
                       .filter((c) => {
-                        if (selectedClassFilter === "CRITICAL")
-                          return c.riskLevel === "CRITICAL" || (c.technicalDebtScore ?? 0) >= 75;
-                        if (selectedClassFilter === "HIGH")
-                          return (c.technicalDebtScore ?? 0) >= 50;
-                        return true;
+                        return selectedClassFilter === "ALL" || getRecommendationSeverity(c) === selectedClassFilter;
                       })
                       .map((cls) => (
                         <div
@@ -5723,14 +5781,25 @@ export default function UserDashboard() {
               <span className="text-xs text-muted-foreground">
                 Technical Debt Analytics Engine • Continuous Code Health
               </span>
-              <button
-                type="button"
-                aria-label="Close report"
-                onClick={closeReport}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
-              >
-                Close Report
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadReport(activeReport?.analysisId ?? selectedReportAnalysisId, activeReport ?? undefined)}
+                  disabled={!activeReport || loadingReport || downloadingAnalysisId === selectedReportAnalysisId}
+                  className="dl-pdf-button inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {downloadingAnalysisId === selectedReportAnalysisId ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {downloadingAnalysisId === selectedReportAnalysisId ? "Generating PDF..." : "Download PDF"}
+                </button>
+                <button
+                  type="button"
+                  aria-label="Close report"
+                  onClick={closeReport}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground hover:bg-muted transition-colors"
+                >
+                  Close Report
+                </button>
+              </div>
             </div>
 
           </div>
