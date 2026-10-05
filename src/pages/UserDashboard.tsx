@@ -5215,7 +5215,7 @@ export default function UserDashboard() {
                         return (
                           <div
                             key={repo.id}
-                            className={`rounded-2xl border transition-all duration-200 overflow-hidden ${isSelected ? "border-indigo-500 bg-indigo-500/10" : "border-border bg-card hover:border-border"
+                            className={`shrink-0 rounded-2xl border transition-all duration-200 overflow-hidden ${isSelected ? "border-indigo-500 bg-indigo-500/10" : "border-border bg-card hover:border-border"
                               }`}
                           >
                             {/* Repo Row */}
