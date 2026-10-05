@@ -226,6 +226,8 @@ input::placeholder, textarea::placeholder { color: #8193ad; }
   box-shadow: var(--dl-shadow);
 }
 .theme-toggle:hover { border-color: var(--dl-accent); color: var(--dl-accent); transform: translateY(-1px); }
+.dl-pdf-button { color: var(--dl-purple); background: var(--dl-purple-soft); border-color: var(--dl-purple-border); }
+.dl-pdf-button:hover:not(:disabled) { background: color-mix(in srgb, var(--dl-purple-soft) 78%, var(--dl-purple) 22%); }
 .theme-toggle-floating { position: fixed; top: 28px; right: 28px; z-index: 20; }
 
 /* KPIs: label first, a prominent value, then existing supporting information. */

@@ -9,8 +9,17 @@ const auth0 = vi.hoisted(() => ({
   useAuth0: vi.fn(),
 }))
 
+const pdf = vi.hoisted(() => ({
+  generateAnalysisReportPdf: vi.fn(),
+}))
+
 vi.mock('@auth0/auth0-react', () => ({
   useAuth0: auth0.useAuth0,
+}))
+
+vi.mock('../lib/generateAnalysisReportPdf', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../lib/generateAnalysisReportPdf')>(),
+  generateAnalysisReportPdf: pdf.generateAnalysisReportPdf,
 }))
 
 function renderAuthenticatedDashboard(fetchImplementation?: (url: string, init?: RequestInit) => Promise<Response>) {
@@ -39,6 +48,74 @@ describe('UserDashboard UI flows', () => {
     sessionStorage.clear()
     localStorage.clear()
     window.history.replaceState({}, '', '/')
+    pdf.generateAnalysisReportPdf.mockReset()
+  })
+
+  it('downloads the complete report independently of the recommendation filter', async () => {
+    const user = userEvent.setup()
+    const report = {
+      reportId: 1,
+      analysisId: 42,
+      repositoryId: 7,
+      repositoryName: 'analysis-service',
+      branch: 'main',
+      generatedAt: '2026-10-05T12:00:00Z',
+      overallDebtScore: 60,
+      overallHealthScore: 'FAIR',
+      overallRiskLevel: 'HIGH',
+      totalClasses: 4,
+      defectiveClassesCount: 2,
+      totalSatdComments: 3,
+      prioritizedRefactoringList: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((riskLevel, index) => ({
+        classId: index + 1,
+        className: `${riskLevel}Service`,
+        filePath: `src/${riskLevel}Service.java`,
+        startLine: 1,
+        endLine: 50,
+        numberOfLinesOfCode: 50,
+        technicalDebtScore: 90 - index * 20,
+        healthScore: 'FAIR',
+        riskLevel,
+        bugProbability: 0.72,
+        refactorPriorityRank: index + 1,
+        primaryDrivers: ['Complexity'],
+        recommendedActions: [],
+      })),
+    }
+    sessionStorage.setItem('debtlens_active_user_view:auth0|test-user', JSON.stringify({ type: 'report', analysisId: 42 }))
+    let resolveReport!: (response: Response) => void
+    renderAuthenticatedDashboard((url) => url.endsWith('/analysis/42/report')
+      ? new Promise<Response>((resolve) => { resolveReport = resolve })
+      : Promise.resolve(new Response(JSON.stringify([]), { status: 200 })))
+
+    const loadingDownload = await screen.findByRole('button', { name: 'Download PDF' })
+    expect(loadingDownload).toBeDisabled()
+    resolveReport(new Response(JSON.stringify(report), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    await waitFor(() => expect(loadingDownload).toBeEnabled())
+
+    await user.click(screen.getByRole('button', { name: /Critical/ }))
+    expect(screen.getByText('CRITICALService')).toBeInTheDocument()
+    expect(screen.queryByText('HIGHService')).not.toBeInTheDocument()
+
+    await user.click(loadingDownload)
+    await waitFor(() => expect(pdf.generateAnalysisReportPdf).toHaveBeenCalledWith(report))
+    expect(pdf.generateAnalysisReportPdf.mock.calls[0][0].prioritizedRefactoringList).toHaveLength(4)
+  })
+
+  it('shows a friendly error when PDF generation fails', async () => {
+    const user = userEvent.setup()
+    const report = {
+      reportId: 1, analysisId: 42, repositoryId: 7, repositoryName: 'repo', branch: 'main',
+      generatedAt: '2026-10-05T12:00:00Z', overallDebtScore: 0, overallHealthScore: 'GOOD',
+      overallRiskLevel: 'LOW', totalClasses: 0, defectiveClassesCount: 0, totalSatdComments: 0,
+      prioritizedRefactoringList: [],
+    }
+    sessionStorage.setItem('debtlens_active_user_view:auth0|test-user', JSON.stringify({ type: 'report', analysisId: 42 }))
+    pdf.generateAnalysisReportPdf.mockImplementation(() => { throw new Error('Document creation failed') })
+    renderAuthenticatedDashboard((url) => Promise.resolve(new Response(JSON.stringify(url.endsWith('/analysis/42/report') ? report : []), { status: 200 })))
+
+    await user.click(await screen.findByRole('button', { name: 'Download PDF' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to download PDF: Document creation failed')
   })
 
   it('UI-07 � rejects an invalid GitHub organization before backend verification', async () => {
