@@ -4,6 +4,10 @@ import App from './App'
 import './index.css'
 import './polish.css'
 import { Auth0Provider } from '@auth0/auth0-react'
+import ThemeProvider from './theme/ThemeProvider'
+import { initializeTheme } from './theme/theme'
+
+initializeTheme()
 
 ReactDOM.createRoot(
   document.getElementById('root')!
@@ -17,7 +21,9 @@ ReactDOM.createRoot(
         audience: import.meta.env.VITE_AUTH0_AUDIENCE,
       }}
     >
-      <App />
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
     </Auth0Provider>
   </React.StrictMode>,
 )

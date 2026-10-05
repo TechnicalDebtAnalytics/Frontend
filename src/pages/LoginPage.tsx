@@ -1,5 +1,6 @@
 import Logo from "../components/common/Logo"
 import { useAuth0 } from "@auth0/auth0-react"
+import ThemeToggle from "../components/common/ThemeToggle"
 
 const PRIMARY = "#196BDF"
 const PRIMARY_HOVER = "#2B7AE9"
@@ -720,7 +721,7 @@ function RightPanel({
         alignItems: "center",
         justifyContent: "center",
         padding: "40px 32px",
-        background: "#0b1422",
+        background: "var(--dl-bg)",
         minHeight: "100vh",
       }}
     >
@@ -758,7 +759,7 @@ function RightPanel({
             style={{
               fontSize: "17px",
               fontWeight: 700,
-              color: "#edf4ff",
+              color: "var(--dl-text)",
               letterSpacing: "-0.02em",
             }}
           >
@@ -772,7 +773,7 @@ function RightPanel({
             style={{
               fontSize: "26px",
               fontWeight: 700,
-              color: "#edf4ff",
+              color: "var(--dl-text)",
               letterSpacing: "-0.02em",
               marginBottom: "8px",
             }}
@@ -783,7 +784,7 @@ function RightPanel({
           <p
             style={{
               fontSize: "14px",
-              color: "#a1b1c8",
+              color: "var(--dl-muted)",
               lineHeight: 1.6,
             }}
           >
@@ -796,12 +797,12 @@ function RightPanel({
         {/* Auth0 card */}
         <div className="auth-card"
           style={{
-            background: "#111e30",
+            background: "var(--dl-surface)",
             borderRadius: "16px",
             padding: "32px",
             boxShadow:
               "0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06)",
-            border: "1px solid #E5E7EB",
+            border: "1px solid var(--dl-border)",
           }}
         >
           {/* Auth0 icon */}
@@ -817,7 +818,7 @@ function RightPanel({
                 height: "56px",
                 margin: "0 auto 16px",
                 borderRadius: "14px",
-                background: "#172e49",
+                background: "var(--dl-accent-soft)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -831,7 +832,7 @@ function RightPanel({
                 margin: 0,
                 fontSize: "18px",
                 fontWeight: 700,
-                color: "#edf4ff",
+                color: "var(--dl-text)",
               }}
             >
               Sign in securely
@@ -843,7 +844,7 @@ function RightPanel({
                 marginBottom: 0,
                 fontSize: "13px",
                 lineHeight: 1.6,
-                color: "#a1b1c8",
+                color: "var(--dl-muted)",
               }}
             >
               Continue to Auth0 to securely sign in
@@ -895,7 +896,7 @@ function RightPanel({
               justifyContent: "center",
               gap: "6px",
               marginTop: "16px",
-              color: "#96a8c0",
+              color: "var(--dl-text-subtle)",
               fontSize: "11px",
             }}
           >
@@ -912,7 +913,7 @@ function RightPanel({
             textAlign: "center",
             marginTop: "24px",
             fontSize: "13px",
-            color: "#96a8c0",
+            color: "var(--dl-text-subtle)",
           }}
         >
           Don't have an account?{" "}
@@ -946,7 +947,7 @@ function RightPanel({
             textAlign: "center",
             marginTop: "16px",
             fontSize: "11px",
-            color: "#a1b1c8",
+            color: "var(--dl-muted)",
             lineHeight: 1.6,
           }}
         >
@@ -958,7 +959,7 @@ function RightPanel({
               border: "none",
               cursor: "pointer",
               fontSize: "11px",
-              color: "#96a8c0",
+              color: "var(--dl-text-subtle)",
               fontFamily: "Inter, sans-serif",
               padding: 0,
             }}
@@ -973,7 +974,7 @@ function RightPanel({
               border: "none",
               cursor: "pointer",
               fontSize: "11px",
-              color: "#96a8c0",
+              color: "var(--dl-text-subtle)",
               fontFamily: "Inter, sans-serif",
               padding: 0,
             }}
@@ -1003,6 +1004,7 @@ export default function LoginPage({
         fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
       }}
     >
+      <ThemeToggle className="theme-toggle-floating" />
 
       {/* Left side */}
       <div
