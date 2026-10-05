@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type {
+  ClassRecommendation,
   RecommendationSeverity,
   TechnicalDebtReport,
 } from "../types/analysisReport";
@@ -19,10 +20,64 @@ const CONTENT_WIDTH = 180;
 
 type PdfWithTable = jsPDF & { lastAutoTable?: { finalY: number } };
 
+const CLEAN_DRIVER = "clean architecture (no major debt flags detected)";
+const EMPTY_VALUES = new Set(["", "n/a", "na", "none", "not available"]);
+
+export function sanitizePdfText(value: string): string {
+  return value
+    .replace(/\uFFFD/g, "")
+    .replace(/\u00E2\u20AC\u00A2|•/g, "-")
+    .replace(/\u00E2\u20AC[\u201C\u201D]|[–—]/g, "-")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\u00A0/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
 const printable = (value: unknown): string => {
   if (value === null || value === undefined || value === "") return "N/A";
-  return String(value);
+  return sanitizePdfText(String(value)) || "N/A";
 };
+
+const hasMeaningfulValue = (value: unknown): boolean => !EMPTY_VALUES.has(sanitizePdfText(String(value ?? "")).toLowerCase());
+
+export function isActionableRecommendation(recommendation: ClassRecommendation): boolean {
+  const hasDebtDriver = (recommendation.primaryDrivers ?? []).some((driver) => {
+    const normalized = sanitizePdfText(String(driver ?? "")).toLowerCase();
+    return hasMeaningfulValue(normalized) && normalized !== CLEAN_DRIVER;
+  });
+  const hasAction = (recommendation.recommendedActions ?? []).some((action) =>
+    hasMeaningfulValue(action.title)
+    || hasMeaningfulValue(action.description)
+    || hasMeaningfulValue(action.suggestedRefactoring),
+  );
+  return hasDebtDriver || hasAction;
+}
+
+export function getActionableRecommendations(report: TechnicalDebtReport): ClassRecommendation[] {
+  return (report.prioritizedRefactoringList ?? []).filter(isActionableRecommendation);
+}
+
+export function toRepositoryRelativePath(value: string | null | undefined): string {
+  if (!value) return "N/A";
+  const normalized = sanitizePdfText(value).replace(/\\/g, "/");
+  const repositoryWorkspace = normalized.match(/(?:^|\/)analysis-repository-[^/]+\/(.+)$/i);
+  if (repositoryWorkspace?.[1]) return repositoryWorkspace[1];
+
+  const sourceRoot = normalized.match(/(?:^|\/)((?:src|app|lib|test|tests)\/.+)$/i);
+  if (sourceRoot?.[1]) return sourceRoot[1];
+
+  if (/^(?:[A-Za-z]:\/|\/)/.test(normalized)) {
+    return normalized.split("/").filter(Boolean).pop() || "N/A";
+  }
+  return normalized.replace(/^\.\//, "") || "N/A";
+}
+
+export function getReportGenerationTimestamp(report: TechnicalDebtReport): string {
+  const parsed = report.generatedAt ? new Date(report.generatedAt) : new Date();
+  return (Number.isNaN(parsed.getTime()) ? new Date() : parsed).toLocaleString();
+}
 
 export function formatBugProbability(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "N/A";
@@ -30,7 +85,7 @@ export function formatBugProbability(value: number | null | undefined): string {
 }
 
 export function sanitizePdfFilenamePart(value: string): string {
-  const withoutControlCharacters = [...value].filter((character) => character.charCodeAt(0) > 31).join("");
+  const withoutControlCharacters = [...sanitizePdfText(value)].filter((character) => character.charCodeAt(0) > 31).join("");
   const safe = withoutControlCharacters
     .trim()
     .replace(/[<>:"/\\|?*]/g, "_")
@@ -46,7 +101,7 @@ export function buildAnalysisReportFilename(report: TechnicalDebtReport): string
 
 export function getRecommendationCounts(report: TechnicalDebtReport): Record<RecommendationSeverity, number> {
   const counts: Record<RecommendationSeverity, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
-  for (const recommendation of report.prioritizedRefactoringList ?? []) {
+  for (const recommendation of getActionableRecommendations(report)) {
     counts[getRecommendationSeverity(recommendation)] += 1;
   }
   return counts;
@@ -80,8 +135,9 @@ function addPageFurniture(doc: jsPDF, generatedAt: string): void {
 
 export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { document: jsPDF; filename: string } {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" }) as PdfWithTable;
-  const recommendations = [...(report.prioritizedRefactoringList ?? [])];
-  const generatedAt = new Date().toLocaleString();
+  // PDF eligibility is intentionally independent from the dashboard's selected filter.
+  const recommendations = getActionableRecommendations(report);
+  const generatedAt = getReportGenerationTimestamp(report);
   let y = PAGE_TOP;
 
   const ensureSpace = (needed: number) => {
@@ -93,14 +149,17 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
 
   const wrappedText = (text: unknown, indent = 0, fontSize = 9, bold = false) => {
     const content = printable(text);
-    const lines = doc.splitTextToSize(content, CONTENT_WIDTH - indent);
-    const height = Math.max(5, lines.length * (fontSize * 0.42 + 1));
-    ensureSpace(height + 2);
+    const lines = doc.splitTextToSize(content, CONTENT_WIDTH - indent) as string[];
+    const lineHeight = fontSize * 0.42 + 1;
     doc.setFont("helvetica", bold ? "bold" : "normal");
     doc.setFontSize(fontSize);
     doc.setTextColor(...INK);
-    doc.text(lines, PAGE_LEFT + indent, y);
-    y += height;
+    for (const line of lines) {
+      ensureSpace(lineHeight + 1);
+      doc.text(line, PAGE_LEFT + indent, y);
+      y += lineHeight;
+    }
+    y += 1;
   };
 
   doc.setFont("helvetica", "bold");
@@ -118,13 +177,13 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
     theme: "grid",
     body: [
       ["Repository", printable(report.repositoryName), "Branch", printable(report.branch)],
-      ["Analysis ID", printable(report.analysisId), "Report date", report.generatedAt ? new Date(report.generatedAt).toLocaleString() : "N/A"],
+      ["Analysis ID", printable(report.analysisId), "Report date", generatedAt],
     ],
     styles: { font: "helvetica", fontSize: 8.5, cellPadding: 2.5, textColor: INK, overflow: "linebreak" },
     columnStyles: { 0: { fontStyle: "bold", fillColor: [239, 246, 255] }, 2: { fontStyle: "bold", fillColor: [245, 243, 255] } },
     margin: { left: PAGE_LEFT, right: PAGE_LEFT, top: PAGE_TOP, bottom: 20 },
   });
-  y = (doc.lastAutoTable?.finalY ?? y) + 8;
+  y = (doc.lastAutoTable?.finalY ?? y) + 6;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
@@ -141,7 +200,7 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
     styles: { font: "helvetica", fontSize: 8.5, halign: "center", cellPadding: 2.8, textColor: INK },
     margin: { left: PAGE_LEFT, right: PAGE_LEFT, top: PAGE_TOP, bottom: 20 },
   });
-  y = (doc.lastAutoTable?.finalY ?? y) + 10;
+  y = (doc.lastAutoTable?.finalY ?? y) + 7;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
@@ -149,7 +208,7 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
   doc.text("PRIORITIZED RECOMMENDATIONS", PAGE_LEFT, y);
   y += 6;
   wrappedText("Recommendations are grouped by risk and ordered by refactoring priority. Address the highest-priority items first.");
-  y += 3;
+  y += 1;
 
   const severities: RecommendationSeverity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
   let recommendationNumber = 1;
@@ -158,7 +217,7 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
       .filter((item) => getRecommendationSeverity(item) === severity)
       .sort((a, b) => (a.refactorPriorityRank ?? Number.MAX_SAFE_INTEGER) - (b.refactorPriorityRank ?? Number.MAX_SAFE_INTEGER));
 
-    ensureSpace(15);
+    ensureSpace(group.length > 0 ? 31 : 15);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     const severityColor: [number, number, number] = severity === "CRITICAL"
@@ -174,19 +233,17 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
 
     if (group.length === 0) {
       wrappedText("No recommendations in this category.", 2, 8.5);
-      y += 3;
+      y += 1;
       continue;
     }
 
     for (const recommendation of group) {
-      ensureSpace(48);
+      ensureSpace(24);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(...INK);
-      const title = `${recommendationNumber}. ${printable(recommendation.className)}`;
-      doc.text(doc.splitTextToSize(title, CONTENT_WIDTH), PAGE_LEFT, y);
-      y += 6;
-      wrappedText(`File: ${printable(recommendation.filePath)}${recommendation.startLine != null && recommendation.endLine != null ? ` (lines ${recommendation.startLine}-${recommendation.endLine})` : ""}`, 2, 8.5);
+      wrappedText(`${recommendationNumber}. ${printable(recommendation.className)}`, 0, 11, true);
+      wrappedText(`File: ${toRepositoryRelativePath(recommendation.filePath)}${recommendation.startLine != null && recommendation.endLine != null ? ` (lines ${recommendation.startLine}-${recommendation.endLine})` : ""}`, 2, 8.5);
 
       autoTable(doc, {
         startY: y,
@@ -201,11 +258,12 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
         margin: { left: PAGE_LEFT + 2, right: PAGE_LEFT, top: PAGE_TOP, bottom: 20 },
         pageBreak: "auto",
       });
-      y = (doc.lastAutoTable?.finalY ?? y) + 5;
+      y = (doc.lastAutoTable?.finalY ?? y) + 3;
 
       wrappedText("Primary Debt Drivers:", 2, 9, true);
-      const drivers = recommendation.primaryDrivers?.length ? recommendation.primaryDrivers : ["N/A"];
-      for (const driver of drivers) wrappedText(`- ${printable(driver)}`, 6, 8.5);
+      const drivers = recommendation.primaryDrivers?.filter((driver) => hasMeaningfulValue(driver)) ?? [];
+      if (drivers.length === 0) wrappedText("- N/A", 6, 8.5);
+      else for (const driver of drivers) wrappedText(`- ${printable(driver)}`, 6, 8.5);
 
       const actions = recommendation.recommendedActions?.length ? recommendation.recommendedActions : [];
       if (actions.length === 0) {
@@ -222,13 +280,13 @@ export function createAnalysisReportPdfDocument(report: TechnicalDebtReport): { 
 
       doc.setDrawColor(226, 232, 240);
       doc.line(PAGE_LEFT, y, 195, y);
-      y += 7;
+      y += 4;
       recommendationNumber += 1;
     }
   }
 
   const counts = getRecommendationCounts(report);
-  ensureSpace(58);
+  ensureSpace(45);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.setTextColor(...BRAND_PURPLE);
