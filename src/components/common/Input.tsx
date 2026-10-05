@@ -42,7 +42,7 @@ export default function Input({
         <div style={{
           position: 'absolute', left: '14px', top: '50%',
           transform: 'translateY(-50%)',
-          color: focused ? primaryColor : '#9CA3AF',
+          color: focused ? primaryColor : 'var(--dl-text-subtle)',
           transition: 'color 0.15s ease',
           pointerEvents: 'none',
         }}>

@@ -37,7 +37,7 @@ body {
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #0c1727 inset !important;
-  -webkit-text-fill-color: #E8F0FC !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--dl-inset) inset !important;
+  -webkit-text-fill-color: var(--dl-text) !important;
   transition: background-color 5000s ease-in-out 0s;
 }

@@ -33,6 +33,7 @@ import SystemAdminCompanyDetails from './SystemAdminCompanyDetails'
 import SystemAdminUsers from './SystemAdminUsers'
 import SystemAdminAnalysisJobs from './SystemAdminAnalysisJobs'
 import SystemAdminJobDetails from './SystemAdminJobDetails'
+import ThemeToggle from '../components/common/ThemeToggle'
 import type {
   AdminActivity,
   AdminStats,
@@ -556,6 +557,7 @@ export default function SystemAdminDashboard() {
           <div className="header-title">{title}</div>
 
           <div className="header-actions">
+            <ThemeToggle />
             <div className="global-search">
               <div className="search-box">
                 <Search size={16} aria-hidden="true" />

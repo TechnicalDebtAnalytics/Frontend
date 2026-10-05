@@ -3,6 +3,7 @@ import Input from '../components/common/Input'
 import Button from '../components/common/Button'
 import Logo from '../components/common/Logo'
 import { API_BASE_URL } from '../config/api'
+import ThemeToggle from '../components/common/ThemeToggle'
 
 const PRIMARY = "#196BDF"
 const PRIMARY_HOVER = "#2B7AE9"
@@ -733,7 +734,7 @@ function RightPanel({
         alignItems: 'center',
         justifyContent: 'center',
         padding: '32px',
-        background: '#0b1422',
+        background: 'var(--dl-bg)',
         minHeight: '100vh',
         overflowY: 'auto',
       }}
@@ -772,7 +773,7 @@ function RightPanel({
             style={{
               fontSize: '17px',
               fontWeight: 700,
-              color: '#edf4ff',
+              color: 'var(--dl-text)',
             }}
           >
             DebtLens
@@ -784,7 +785,7 @@ function RightPanel({
             style={{
               fontSize: '26px',
               fontWeight: 700,
-              color: '#edf4ff',
+              color: 'var(--dl-text)',
               marginBottom: '6px',
             }}
           >
@@ -794,7 +795,7 @@ function RightPanel({
           <p
             style={{
               fontSize: '14px',
-              color: '#a1b1c8',
+              color: 'var(--dl-muted)',
               lineHeight: 1.6,
             }}
           >
@@ -804,12 +805,12 @@ function RightPanel({
 
         <div className="auth-card"
           style={{
-            background: '#111e30',
+            background: 'var(--dl-surface)',
             borderRadius: '16px',
             padding: '28px 32px',
             boxShadow:
               '0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06)',
-            border: '1px solid #E5E7EB',
+            border: '1px solid var(--dl-border)',
           }}
         >
           <div
@@ -875,7 +876,7 @@ function RightPanel({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    color: '#96a8c0',
+                    color: 'var(--dl-text-subtle)',
                     padding: '4px',
                     display: 'flex',
                   }}
@@ -906,7 +907,7 @@ function RightPanel({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    color: '#96a8c0',
+                    color: 'var(--dl-text-subtle)',
                     padding: '4px',
                     display: 'flex',
                   }}
@@ -921,7 +922,7 @@ function RightPanel({
                 style={{
                   marginTop: '-10px',
                   fontSize: '12px',
-                  color: '#EF4444',
+                  color: 'var(--dl-danger)',
                 }}
               >
                 Passwords do not match.
@@ -933,9 +934,9 @@ function RightPanel({
                 style={{
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  background: '#3a202b',
-                  border: '1px solid #FECACA',
-                  color: '#ff9ca6',
+                  background: 'var(--dl-danger-soft)',
+                  border: '1px solid var(--dl-danger-border)',
+                  color: 'var(--dl-danger)',
                   fontSize: '13px',
                 }}
               >
@@ -948,9 +949,9 @@ function RightPanel({
                 style={{
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  background: '#F0FDF4',
-                  border: '1px solid #BBF7D0',
-                  color: '#15803D',
+                  background: 'var(--dl-success-soft)',
+                  border: '1px solid var(--dl-success-border)',
+                  color: 'var(--dl-success)',
                   fontSize: '13px',
                 }}
               >
@@ -980,7 +981,7 @@ function RightPanel({
               <span
                 style={{
                   fontSize: '13px',
-                  color: '#a1b1c8',
+                  color: 'var(--dl-muted)',
                   lineHeight: 1.5,
                 }}
               >
@@ -1015,7 +1016,7 @@ function RightPanel({
             textAlign: 'center',
             marginTop: '24px',
             fontSize: '13px',
-            color: '#96a8c0',
+            color: 'var(--dl-text-subtle)',
           }}
         >
           Already have an account?{' '}
@@ -1055,6 +1056,7 @@ export default function RegisterPage({
           'Inter, ui-sans-serif, system-ui, sans-serif',
       }}
     >
+      <ThemeToggle className="theme-toggle-floating" />
 
       <div
         className="register-left"
