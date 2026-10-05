@@ -4,9 +4,13 @@ import {
   buildAnalysisReportFilename,
   createAnalysisReportPdfDocument,
   formatBugProbability,
+  getActionableRecommendations,
   getRecommendationCounts,
   getRecommendationSeverity,
+  getReportGenerationTimestamp,
+  sanitizePdfText,
   sanitizePdfFilenamePart,
+  toRepositoryRelativePath,
 } from "./generateAnalysisReportPdf";
 
 const recommendation = (riskLevel: string, rank: number): ClassRecommendation => ({
@@ -49,6 +53,12 @@ const report: TechnicalDebtReport = {
     recommendation("HIGH", 2),
     recommendation("MEDIUM", 3),
     recommendation("LOW", 4),
+    {
+      ...recommendation("LOW", 5),
+      className: "CleanClass",
+      primaryDrivers: ["Clean architecture (No major debt flags detected)"],
+      recommendedActions: [],
+    },
   ],
 };
 
@@ -68,12 +78,33 @@ describe("analysis report PDF helpers", () => {
     expect(getRecommendationSeverity({ ...recommendation("UNKNOWN", 5), technicalDebtScore: 51 })).toBe("HIGH");
   });
 
+  it("excludes clean, non-actionable classes without changing the analyzed-class total", () => {
+    const actionable = getActionableRecommendations(report);
+    expect(actionable).toHaveLength(4);
+    expect(actionable.map((item) => item.className)).not.toContain("CleanClass");
+    expect(report.totalClasses).toBe(24);
+  });
+
+  it("removes internal workspace prefixes from repository file paths", () => {
+    expect(toRepositoryRelativePath("/tmp/analysis-repository-42/src/main/java/App.java"))
+      .toBe("src/main/java/App.java");
+    expect(toRepositoryRelativePath("C:\\Temp\\analysis-repository-abc\\app\\service.py"))
+      .toBe("app/service.py");
+    expect(toRepositoryRelativePath("/private/build/workspace/src/lib/Report.java"))
+      .toBe("src/lib/Report.java");
+  });
+
+  it("uses one valid report timestamp and removes corrupted text markers", () => {
+    expect(getReportGenerationTimestamp(report)).toBe(new Date(report.generatedAt).toLocaleString());
+    expect(sanitizePdfText("DebtLens � report â€¢ ready")).toBe("DebtLens report - ready");
+  });
+
   it("generates a multi-page document with long content and tolerates missing values", () => {
     const incomplete = {
       ...report,
       prioritizedRefactoringList: [
         ...report.prioritizedRefactoringList,
-        { ...recommendation("LOW", 5), bugProbability: undefined, primaryDrivers: [], recommendedActions: [] },
+        { ...recommendation("LOW", 6), bugProbability: undefined, primaryDrivers: ["A valid debt driver"], recommendedActions: [] },
       ],
     } as unknown as TechnicalDebtReport;
 
