@@ -68,7 +68,7 @@ export default function Button({
       style={{
         width: fullWidth ? '100%' : 'auto',
         height: '50px',
-        background: (disabled || loading) ? '#29466C' : hovered ? primaryHover : primaryColor,
+        background: (disabled || loading) ? 'var(--dl-action-disabled)' : hovered ? primaryHover : primaryColor,
         color: '#fff',
         border: 'none',
         borderRadius: '10px',
