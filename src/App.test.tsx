@@ -56,6 +56,9 @@ describe('DebtLens core UI flows', () => {
     await user.click(screen.getByRole('button', { name: 'Continue with Auth0' }))
 
     expect(auth0State.loginWithRedirect).toHaveBeenCalledOnce()
+    expect(auth0State.loginWithRedirect).toHaveBeenCalledWith({
+      openUrl: expect.any(Function),
+    })
   })
 
   it('UI-02 — navigates from login to the existing registration page', async () => {

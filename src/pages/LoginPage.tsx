@@ -707,7 +707,11 @@ function RightPanel({
 
   const handleLogin = async () => {
     try {
-      await loginWithRedirect()
+      await loginWithRedirect({
+        openUrl: (url) => {
+          window.location.replace(url)
+        },
+      })
     } catch (error) {
       console.error("Login failed:", error)
     }
