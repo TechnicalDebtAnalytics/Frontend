@@ -36,7 +36,7 @@ describe('LoginPage', () => {
 ).toBeInTheDocument()
   })
 
-  it('calls loginWithRedirect when the Auth0 button is clicked', async () => {
+  it('starts the Auth0 redirect by replacing the current history entry', async () => {
     const user = userEvent.setup()
     const loginWithRedirect = vi.fn()
 
@@ -55,6 +55,10 @@ describe('LoginPage', () => {
 
     await waitFor(() => {
       expect(loginWithRedirect).toHaveBeenCalledTimes(1)
+    })
+
+    expect(loginWithRedirect).toHaveBeenCalledWith({
+      openUrl: expect.any(Function),
     })
   })
 
