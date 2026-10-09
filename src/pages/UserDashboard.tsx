@@ -5718,16 +5718,8 @@ export default function UserDashboard() {
                             </div>
                           </div>
 
-                          {/* Right: Scores & Risk Badges */}
+                          {/* Right: Repository ranking classification */}
                           <div className="flex items-center gap-3 shrink-0 flex-wrap md:justify-end">
-                            {/* Bug Risk Pill */}
-                            <div className="px-3 py-1.5 rounded-xl border border-border bg-muted text-center min-w-[90px]">
-                              <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Bug Risk</span>
-                              <span className="text-xs font-extrabold text-foreground">
-                                {cls.bugProbability != null ? `${Math.round(cls.bugProbability * 100)}%` : "0%"}
-                              </span>
-                            </div>
-
                             {/* Risk Level */}
                             <div
                               className="px-3 py-1.5 rounded-xl text-center min-w-[85px]"
@@ -5748,25 +5740,6 @@ export default function UserDashboard() {
                             >
                               <span className="block text-[10px] uppercase font-bold tracking-wider opacity-80">Risk</span>
                               <span className="text-xs font-black">{cls.riskLevel}</span>
-                            </div>
-
-                            {/* Technical Debt Score */}
-                            <div
-                              className="px-4 py-2 rounded-2xl text-center shadow-sm min-w-[100px]"
-                              style={{
-                                background:
-                                  cls.technicalDebtScore >= 75
-                                    ? "#922e3b"
-                                    : cls.technicalDebtScore >= 50
-                                      ? "#926017"
-                                      : cls.technicalDebtScore >= 25
-                                        ? "#2563EB"
-                                        : "#137756",
-                                color: "#FFFFFF",
-                              }}
-                            >
-                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-90">Debt Score</span>
-                              <span className="text-base font-black tracking-tight">{cls.technicalDebtScore}</span>
                             </div>
                           </div>
                         </div>
