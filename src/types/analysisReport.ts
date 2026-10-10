@@ -13,10 +13,10 @@ export interface ClassRecommendation {
   startLine: number;
   endLine: number;
   numberOfLinesOfCode: number;
-  technicalDebtScore: number;
+  technicalDebtScore: number | null;
   healthScore: "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | string;
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | string;
-  bugProbability: number;
+  bugProbability: number | null;
   refactorPriorityRank: number;
   primaryDrivers: string[];
   recommendedActions: RefactoringAction[];
